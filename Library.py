@@ -257,7 +257,7 @@ def makeMap(df: pd.DataFrame, column: str) -> px.choropleth:
 def findLocation(investor : str):
     if len(investor)==0:
         return {"Investor" : "missing"}
-    API_KEY="AIzaSyD_3_AH8Ba3vdANNXrIfrr6UprF13impts"
+    API_KEY="YOUR_API_KEY"
     url="https://places.googleapis.com/v1/places:searchText"
 
     headers = {
@@ -429,4 +429,5 @@ def space(df: pd.DataFrame) -> pd.DataFrame:
     df["Space"]=df["company_all_tags"].apply(lambda x: True if not pd.isna(x) and "Space" in x else False)
     df=df[df["Space"]==True]
     df=df.drop(labels="Space", axis=1)
+
     return df
