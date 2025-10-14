@@ -3,7 +3,7 @@ import Library as mylib
 import requests as r
 import json
 
-"""API_KEY="AIzaSyD_3_AH8Ba3vdANNXrIfrr6UprF13impts"
+"""API_KEY="YOUR_API_KEY"
 url="https://places.googleapis.com/v1/places:searchText"
 
 df=pd.read_parquet("DB_Out/DB_investors.parquet")
@@ -27,5 +27,6 @@ df=pd.read_parquet("DB_Out/DB_export.parquet")
 df=df[["investor_id","investor_name","investor_continent","investor_country","investor_city","investor_metros"]]
 df.columns=["Investor ID","Investor","Continent","Country","City","Metros"]
 df.to_parquet("DB_inv_loc.parquet")
+
 
 
