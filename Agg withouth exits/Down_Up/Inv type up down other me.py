@@ -3,9 +3,9 @@ import Library as mylib
 import plotly.express as px
 
 #doing an aggregation with the following columns: Investor type, Upstream, Downstream, Other
-df_temp=pd.read_parquet("DB_Out/DB_export.parquet")
-df_inv=pd.read_parquet("DB_Out/DB_investors.parquet")
-df_round=pd.read_parquet("DB_Out/RoundSplit.parquet")
+df_temp=mylib.openDB("export")
+df_inv=mylib.openDB("investors")
+df_round=mylib.openDB("rounds")
 
 
 #classify investments down, up, other
@@ -20,7 +20,8 @@ def classify(row) -> str:
         return "Other"
 
 df_temp=df_temp[["company_name", "company_id", "company_all_tags"]]
-df_temp=mylib.space(df_temp)
+df_temp=mylib.space(df_temp, "company_id", True)
+df_temp=df_temp[["company_name","company_id","company_all_tags"]].copy()
 df_temp.columns=["Name", "ID", "Tags"]
 df_temp["Class"]=df_temp["Tags"].apply(lambda x: classify(x) if not pd.isna(x) else "Other")
 

@@ -3,10 +3,10 @@ import Library as mylib
 import matplotlib.pyplot as plt
 
 
-df_round = pd.read_parquet("DB_Out/RoundSplit.parquet")
-df_inv = pd.read_parquet("DB_Out/DB_Investors.parquet")
+df_round = mylib.openDB("rounds")
+df_inv = mylib.openDB("investors")
 db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
-db_exp=mylib.space(db_exp)
+db_exp=mylib.space(db_exp, "company_id", True)
 db_exp=db_exp["company_id"]
 df_round=df_round[df_round["Target firm ID"].isin(db_exp)]
 
@@ -49,7 +49,7 @@ print(df_round_inv[:10])
 # pre-compute aggregates so every chart shares the same base numbers
 df_round_inv_agg = (
     df_round_inv.groupby("Investor type", as_index=False)
-    .agg(round_share=("round_share", "sum"), total_amount=("AmountUSD", "sum"))
+    .agg(round_share=("round_share", "count"), total_amount=("AmountUSD", "sum"))
 )
 df_round_inv_agg.rename(columns={"round_share": "count", "total_amount": "sum"}, inplace=True)
 df_round_inv_agg["mean"] = df_round_inv_agg["sum"] / df_round_inv_agg["count"].replace(0, pd.NA)
@@ -59,6 +59,7 @@ df_round_inv_agg["sum"]=df_round_inv_agg["sum"].apply(lambda x: x/1000000000 if 
 
 
 df_round_inv_number = df_round_inv_agg.sort_values(by="count").tail(13)[["Investor type", "count"]].copy()
+print(df_round_inv_number)
 df_round_inv_amount = df_round_inv_agg.sort_values(by="sum").tail(13)[["Investor type", "sum"]].copy()
 df_round_inv_mean = df_round_inv_agg.sort_values(by="mean")[["Investor type", "mean"]].copy()
 
