@@ -11,7 +11,7 @@ def spaceSpecialization(df_investor: pd.DataFrame) -> pd.DataFrame:
     """
     round = mylib.openDB("rounds")
     round.fillna({"AmountUSD":0}, inplace=True)
-    upDown=pd.read_parquet("DB_Out/DB_updown.parquet")
+    upDown=mylib.openDB("updown")
     #amount invested in space by each investor
     roundSpace=pd.merge(left=round, right=upDown, left_on="Target firm ID", right_index=True, how="inner")
     roundSpace=roundSpace[roundSpace["Round date"]<=pd.to_datetime("2016", format="%Y")]
