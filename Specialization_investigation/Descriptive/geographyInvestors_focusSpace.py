@@ -12,7 +12,8 @@ except ImportError:
     HAS_PGEO = False
 
 # Load data from DB_Out using Library helpers
-df_inv = mylib.openDB("investors")  # columns include: ID, Investor country, Investor city
+df_inv = mylib.openDB("investors")
+df_inv=df_inv[(df_inv["Flag space"]==1) & (df_inv["Venture capital flag"]==1)].copy()  # columns include: ID, Investor country, Investor city
 df_exp = mylib.openDB("export")
 
 # Keep only space-related companies and the corresponding investor IDs

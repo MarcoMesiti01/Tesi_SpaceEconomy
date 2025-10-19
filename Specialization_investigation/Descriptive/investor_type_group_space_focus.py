@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 df_round = mylib.openDB("rounds")
 df_inv = mylib.openDB("investors")
+df_inv=df_inv[(df_inv["Flag space"]==1) & (df_inv["Venture capital flag"]==1)].copy()
 db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
 db_exp=mylib.space(db_exp, "company_id", True)
 db_exp=db_exp["company_id"]

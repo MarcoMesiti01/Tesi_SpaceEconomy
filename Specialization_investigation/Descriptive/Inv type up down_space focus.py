@@ -5,6 +5,7 @@ import plotly.express as px
 #doing an aggregation with the following columns: Investor type, Upstream, Downstream, Other
 df_temp=mylib.openDB("export")
 df_inv=mylib.openDB("investors")
+df_inv=df_inv[(df_inv["Flag space"]==1) & (df_inv["Venture capital flag"]==1)].copy()
 df_round=mylib.openDB("rounds")
 
 
