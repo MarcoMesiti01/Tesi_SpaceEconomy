@@ -8,6 +8,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import pycountry
+from pathlib import Path
+from typing import Optional, Literal
 
 def isfloat(value):#True if is float
     try:
@@ -257,7 +259,7 @@ def makeMap(df: pd.DataFrame, column: str) -> px.choropleth:
 def findLocation(investor : str):
     if len(investor)==0:
         return {"Investor" : "missing"}
-    API_KEY="YOUR_API_KEY"
+    API_KEY="API_Key"
     url="https://places.googleapis.com/v1/places:searchText"
 
     headers = {
@@ -424,10 +426,74 @@ def toEU(df : pd.DataFrame) -> pd.DataFrame:
     df["Country"]=df["Country"].mask(df["Country"].isin(EU), other="EU")
     return df
 
-def space(df: pd.DataFrame) -> pd.DataFrame:
-    """Accepts a df with the column "company_all_tags" and filter the rows if the string "Space" belong to this column"""
-    df["Space"]=df["company_all_tags"].apply(lambda x: True if not pd.isna(x) and "Space" in x else False)
-    df=df[df["Space"]==True]
-    df=df.drop(labels="Space", axis=1)
+def space(df: pd.DataFrame, column : str, filter : bool) -> pd.DataFrame:
+    """Accepts a dataframe with the firm Id in the 'column', adds the flag space based on the Table, returns the dataframe with the flag if filter is 0, returns the dataframe filtered if filter is 1"""
+    df_space=openDB("updown")
+    df_space=df_space["Space"]
+    df_fin=pd.merge(left=df, right=df_space, left_on=column, right_index=True, how="left")
+    df_fin.fillna({"Space":0}, inplace=True)
+    if filter:
+        return df_fin[df_fin["Space"]==1]
+    else:
+        return df_fin
 
-    return df
+    
+
+#add it here
+def _find_db_out_dir(start: Optional[Path] = None) -> Path:
+    """Locate the nearest 'DB_Out' directory walking up from this file.
+
+    Searches the current file's directory, its parents, and siblings for a
+    folder named 'DB_Out'. Returns the Path if found; raises FileNotFoundError
+    otherwise.
+    """
+    start_dir = (start or Path(__file__).resolve()).parent
+
+    # Walk up a few levels to be robust to different project layouts
+    for base in [start_dir, *start_dir.parents]:
+        candidate = base / "DB_Out"
+        if candidate.is_dir():
+            return candidate
+    raise FileNotFoundError(
+        "DB_Out directory not found. Expected a folder named 'DB_Out' "
+        "in this project."
+    )
+
+
+DBTableName = Literal["investors", "rounds", "valuation", "export", "updown"]
+
+
+def openDB(parameter: DBTableName) -> pd.DataFrame:
+    """Open a parquet table from 'DB_Out' using a constrained set of names.
+
+    Allowed values for `parameter` (offered by IDE autocompletion):
+    - "investors"
+    - "rounds"
+    - "valuation"
+    - "export"
+    - "updown"
+
+    Returns a pandas.DataFrame for the file `DB_<parameter>.parquet`.
+    """
+    allowed: tuple[str, ...] = ("investors", "rounds", "valuation", "export", "updown")
+
+    if not isinstance(parameter, str):
+        raise TypeError("parameter must be a string literal")
+
+    key = parameter.strip().lower()
+    if key not in allowed:
+        raise ValueError(
+            "Invalid parameter. Allowed: " + ", ".join(allowed)
+        )
+
+    db_dir = _find_db_out_dir()
+    parquet_name = f"DB_{key}.parquet"
+    parquet_path = db_dir / parquet_name
+
+    if not parquet_path.is_file():
+        available = ", ".join(p.name for p in sorted(db_dir.glob("*.parquet")))
+        raise FileNotFoundError(
+            f"Expected '{parquet_name}' in DB_Out. Available: {available if available else 'none'}"
+        )
+
+    return pd.read_parquet(parquet_path)
