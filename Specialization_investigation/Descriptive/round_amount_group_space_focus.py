@@ -2,13 +2,11 @@ import pandas as pd
 import Library as mylib
 import matplotlib.pyplot as plt
 
-df=pd.read_parquet("DB_Out/RoundSplit.parquet")
-db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
-db_exp=mylib.space(db_exp)
-db_exp=db_exp["company_id"]
-df=df[df["Target firm ID"].isin(db_exp)]
+df=mylib.openDB("rounds")
+df_inv=mylib.openDB("investors")
+df_inv=df_inv[(df_inv["Flag space"]==1) & (df_inv["Venture capital flag"]==1)]["ID"].copy()
+df=df[(df["Investor ID"].isin(df_inv)) & (df["AmountUSD"]!=0)].copy()
 
-df=df[df["AmountUSD"]!=0]
 df["AmountUSD"]=df["AmountUSD"].apply(lambda x: x/1000000 if not pd.isna(x) else x)
 df=mylib.filterExits(df)
 df=df[df["Round type"]!="NULL"]
