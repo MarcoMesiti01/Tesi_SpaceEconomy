@@ -46,16 +46,17 @@ df_inv_loc.rename(columns={"Country" : "Investor country"}, inplace=True)
 #merging the two dataset
 df=pd.merge(left=df_round, right=df_inv_loc, how="left", on="Investor ID")"""
 
-df=pd.read_parquet("DB_Out/DB_export.parquet")
-#df=mylib.space(df)
-df=df[["round_id","company_id", "company_country", "round_label","round_amount_usd","investor_id","investor_country"]]
+df=mylib.openDB("export")
+df=mylib.space(df, "company_id", True)
+df=df[df["company_continent"]=="Europe"]
+df=df[["round_id","company_id", "company_country", "round_label","round_amount_usd","investor_id","investor_country"]].copy()
 df.columns=["Round ID", "Firm ID", "Firm country", "Round type", "AmountUSD","Investor ID","Investor country"]
 df=mylib.filterExits(df)
-df.rename(columns={"Firm country" : "Country"}, inplace=True)
+"""df.rename(columns={"Firm country" : "Country"}, inplace=True)
 df=mylib.toEU(df)
 df.rename(columns={"Country" : "Firm country", "Investor country" : "Country"}, inplace=True)
 df=mylib.toEU(df)
-df.rename(columns={"Country" : "Investor country"}, inplace=True)
+df.rename(columns={"Country" : "Investor country"}, inplace=True)"""
 df["AmountUSD"]=df["AmountUSD"].apply(lambda x: x/1000000000 if not pd.isna(x) else x)
 
 #selecting the top 5 investing countries
