@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 #we want to define the number of startup founded in each year and represent it on a time series chart
 #years - number of firms launched
 df_firm=pd.read_parquet("DB_Out/DB_export.parquet")
-#df_firm=mylib.space(df_firm)
-df_firm=df_firm[df_firm["company_launch_year"]>2000]
+df_firm=mylib.space(df_firm, "company_id", True)
+df_firm=df_firm[df_firm["company_launch_year"]>pd.to_datetime("2000", format="%Y")]
 df_firm=df_firm[["company_id","company_name","company_launch_year"]]
 df_firm.drop_duplicates(inplace=True, ignore_index=True)
 df_firm=df_firm[["company_name","company_launch_year"]]
