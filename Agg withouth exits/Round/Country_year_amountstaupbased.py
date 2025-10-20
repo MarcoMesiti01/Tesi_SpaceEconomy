@@ -4,9 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #countryList=["Germany", "Italy", "United States", "France", "United Kingdom", "China"]
-df_round=pd.read_parquet("DB_Out/RoundSplit.parquet")
+df_round=mylib.openDB("rounds")
 db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
-db_exp=mylib.space(db_exp)
+db_exp=mylib.space(db_exp, "company_id", True)
 db_exp=db_exp["company_id"]
 df_round=df_round[df_round["Target firm ID"].isin(db_exp)]
 df_round=mylib.filterExits(df_round)
