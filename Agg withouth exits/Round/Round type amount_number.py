@@ -3,9 +3,9 @@ import Library as mylib
 import matplotlib.pyplot as plt
 
 
-df_merge = pd.read_parquet("DB_Out/RoundSplit.parquet")
+df_merge = mylib.openDB("rounds")
 db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
-db_exp=mylib.space(db_exp)
+db_exp=mylib.space(db_exp, "company_id", True)
 db_exp=db_exp["company_id"]
 df_merge=df_merge[df_merge["Target firm ID"].isin(db_exp)]
 df_rt_og = df_merge[["Round type", "AmountUSD"]]
@@ -22,14 +22,14 @@ print(df_rt_sum["Round type"].to_list())
 df_rt_sum = df_rt_sum[["Round type", "AmountUSD"]]
 df_rt_sum.columns = ["Round type", "sum"]
 df_rt_sum.sort_values(by="sum", inplace=True)
-df_rt_sum["Round type"].mask(df_rt_sum["Round type"] == "PROJECT, REAL ESTATE, INFRASTRUCTURE FINANCE", other="PROJ, RE, IF", inplace=True)
+df_rt_sum["Round type"]=df_rt_sum["Round type"].mask(df_rt_sum["Round type"] == "PROJECT, REAL ESTATE, INFRASTRUCTURE FINANCE", other="PROJ, RE, IF")
 print(df_rt_sum.columns)
 print(df_rt_sum[df_rt_sum["Round type"] == "PROJ, RE, IF"])
 
 # aggregate by mean
 df_rt_avg = df_rt_og.groupby(by="Round type", group_keys=False).mean()
 df_rt_avg.reset_index(inplace=True)
-df_rt_avg["Round type"].mask(df_rt_avg["Round type"] == "PROJECT, REAL ESTATE, INFRASTRUCTURE FINANCE", other="PROJ, RE, IF", inplace=True)
+df_rt_avg["Round type"]=df_rt_avg["Round type"].mask(df_rt_avg["Round type"] == "PROJECT, REAL ESTATE, INFRASTRUCTURE FINANCE", other="PROJ, RE, IF")
 df_rt_avg = df_rt_avg[["Round type", "AmountUSD"]]
 df_rt_avg.columns = ["Round type", "average"]
 

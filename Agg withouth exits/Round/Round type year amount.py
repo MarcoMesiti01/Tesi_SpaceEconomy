@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import Library as mylib
 
-ROUNDS_PATH = "DB_Out/RoundSplit.parquet"
+ROUNDS_PATH = "DB_Out/DB_rounds.parquet"
 EXPORT_PATH = "DB_Out/DB_export.parquet"
 
 def get_space_rounds() -> pd.DataFrame:
@@ -13,7 +13,7 @@ def get_space_rounds() -> pd.DataFrame:
 
     export_columns = ["company_id", "company_all_tags"]
     companies = pd.read_parquet(EXPORT_PATH, columns=export_columns)
-    companies = mylib.space(companies)
+    companies = mylib.space(companies, "company_id",True)
     space_ids = companies["company_id"].dropna().astype(str)
 
     rounds = rounds.dropna(subset=["Target firm ID"])
