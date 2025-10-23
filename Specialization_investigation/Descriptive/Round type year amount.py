@@ -10,7 +10,7 @@ def get_space_rounds() -> pd.DataFrame:
     columns_rounds = ["company_id", "Round type", "Round date", "round_amount_usd", "investor_id"]
     rounds = pd.read_parquet(ROUNDS_PATH, columns=columns_rounds)
     investor=mylib.openDB("investors")
-    investor=investor[(investor["Flag space"]==1) & (investor["Venture capital flag"]==1)]["ID"]
+    investor=investor[(investor["investor_flag_space"]==1) & (investor["investor_flag_venture_capital"]==1)]["ID"]
     rounds=rounds[(rounds["Round date"]>pd.to_datetime("2010")) & (rounds["investor_id"].isin(investor))]
 
     export_columns = ["company_id", "company_all_tags"]

@@ -5,9 +5,9 @@ inv=mylib.openDB("investors")
 round=mylib.openDB("rounds")
 
 #filtering the dataframe
-inv=inv[inv["Venture capital flag"]==1]
+inv=inv[inv["investor_flag_venture_capital"]==1]
 roundAll=round[round["investor_id"].isin(inv["ID"])]
-inv=inv[inv["Flag space"]==1]
+inv=inv[inv["investor_flag_space"]==1]
 roundSpace=round[round["investor_id"].isin(inv["ID"])].copy()
 
 #average round size

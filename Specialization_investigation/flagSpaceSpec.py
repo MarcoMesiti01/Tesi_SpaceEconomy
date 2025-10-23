@@ -24,7 +24,7 @@ def spaceSpecialization(df_investor: pd.DataFrame) -> pd.DataFrame:
     df_investor.fillna({"investor_amount_space":0}, inplace=True)
 
     #investor_total_amount invested by each investor in total
-    round=round[round["round_date"]<=pd.to_datetime("2016", format="%Y")]
+    round=round[round["round_date"]>pd.to_datetime("2015", format="%Y")]
     invAmount=round[["investor_id", "round_amount_usd", "investors_round"]].groupby(by="investor_id").agg({"round_amount_usd":"sum", "investors_round":"count"})
     invAmount.rename(columns={"round_amount_usd":"investor_total_amount", "investors_round":"investor_number_rounds"}, inplace=True)
     invAmount.fillna(0, inplace=True)
@@ -35,7 +35,7 @@ def spaceSpecialization(df_investor: pd.DataFrame) -> pd.DataFrame:
     df_investor.fillna({"investor_total_amount" : 0, "Number of rounds" : 0}, inplace=True)
     df_investor["investor_flag_space"]=df_investor.apply(lambda x: 1 if x["investor_total_amount"]>0 and x["investor_amount_space"]/x["investor_total_amount"]>=0.2 else 0, axis=1)
     df_investor["investor_flag_venture_capital"]=df_investor["investor_types"].apply(lambda x: 1 if "Venture capital" in x or "venture_capital" in x else 0)
-    #df_investor=df_investor[(df_investor["Flag space"]==1) & (df_investor["Venture capital flag"]==1) & (df_investor["Number of rounds"]>1)]
+    #df_investor=df_investor[(df_investor["investor_flag_space"]==1) & (df_investor["investor_flag_venture_capital"]==1) & (df_investor["Number of rounds"]>1)]
     return df_investor
 
 

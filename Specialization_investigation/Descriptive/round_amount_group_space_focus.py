@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 df=mylib.openDB("rounds")
 df_inv=mylib.openDB("investors")
-df_inv=df_inv[(df_inv["Flag space"]==1) & (df_inv["Venture capital flag"]==1)]["ID"].copy()
+df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)]["ID"].copy()
 df=df[(df["investor_id"].isin(df_inv)) & (df["round_amount_usd"]!=0)].copy()
 
 df["round_amount_usd"]=df["round_amount_usd"].apply(lambda x: x/1000000 if not pd.isna(x) else x)

@@ -13,7 +13,7 @@ except ImportError:
 
 # Load data from DB_Out using Library helpers
 df_inv = mylib.openDB("investors")
-df_inv=df_inv[(df_inv["Flag space"]==1) & (df_inv["Venture capital flag"]==1)].copy()  # columns include: ID, Investor country, Investor city
+df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)].copy()  # columns include: ID, Investor country, Investor city
 df_exp = mylib.openDB("export")
 
 # Keep only space-related companies and the corresponding investor IDs
