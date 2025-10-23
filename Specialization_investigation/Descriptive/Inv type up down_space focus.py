@@ -1,10 +1,12 @@
 import pandas as pd
 import Library as mylib
 import plotly.express as px
+from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import spaceSpecialization
 
 #doing an aggregation with the following columns: Investor type, Upstream, Downstream, Other
 df_temp=mylib.openDB("export")
 df_inv=mylib.openDB("investors")
+df_inv=spaceSpecialization(df_inv, 2015, 0.2)
 df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)].copy()
 df_round=mylib.openDB("rounds")
 

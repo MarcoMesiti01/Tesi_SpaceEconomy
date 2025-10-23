@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import Library as mylib
+from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import spaceSpecialization
 
 # Optional dependency for city -> US state mapping (works offline)
 try:
@@ -13,6 +14,7 @@ except ImportError:
 
 # Load data from DB_Out using Library helpers
 df_inv = mylib.openDB("investors")
+df_inv=spaceSpecialization(df_inv, 2015, 0.2)
 df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)].copy()  # columns include: ID, Investor country, Investor city
 df_exp = mylib.openDB("export")
 

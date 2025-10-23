@@ -1,6 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import Library as mylib
+from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import spaceSpecialization
+
 
 ROUNDS_PATH = "DB_Out/DB_rounds.parquet"
 EXPORT_PATH = "DB_Out/DB_export.parquet"
@@ -10,6 +12,7 @@ def get_space_rounds() -> pd.DataFrame:
     columns_rounds = ["company_id", "Round type", "Round date", "round_amount_usd", "investor_id"]
     rounds = pd.read_parquet(ROUNDS_PATH, columns=columns_rounds)
     investor=mylib.openDB("investors")
+    investor=spaceSpecialization(investor, 2015, 0.2)
     investor=investor[(investor["investor_flag_space"]==1) & (investor["investor_flag_venture_capital"]==1)]["ID"]
     rounds=rounds[(rounds["Round date"]>pd.to_datetime("2010")) & (rounds["investor_id"].isin(investor))]
 

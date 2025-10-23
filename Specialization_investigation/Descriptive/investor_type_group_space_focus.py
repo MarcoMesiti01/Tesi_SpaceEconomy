@@ -1,10 +1,12 @@
 import pandas as pd
 import Library as mylib
 import matplotlib.pyplot as plt
+from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import spaceSpecialization
 
 
 df_round = mylib.openDB("rounds")
 df_inv = mylib.openDB("investors")
+df_inv=spaceSpecialization(df_inv, 2015, 0.2)
 df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)].copy()
 db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
 db_exp=mylib.space(db_exp, "company_id", True)

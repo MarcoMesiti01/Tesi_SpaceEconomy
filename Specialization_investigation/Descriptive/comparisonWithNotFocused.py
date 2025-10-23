@@ -1,8 +1,10 @@
 import pandas as pd
 import Library as mylib
+from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import spaceSpecialization
 
 inv=mylib.openDB("investors")
 round=mylib.openDB("rounds")
+inv=spaceSpecialization(inv, 2015, 0.2)
 
 #filtering the dataframe
 inv=inv[inv["investor_flag_venture_capital"]==1]

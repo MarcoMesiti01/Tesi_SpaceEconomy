@@ -1,9 +1,12 @@
 import pandas as pd
 import Library as mylib
 import matplotlib.pyplot as plt
+from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import spaceSpecialization
+
 
 df=mylib.openDB("rounds")
 df_inv=mylib.openDB("investors")
+df_inv=spaceSpecialization(df_inv, 2015, 0.2)
 df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)]["ID"].copy()
 df=df[(df["investor_id"].isin(df_inv)) & (df["round_amount_usd"]!=0)].copy()
 
