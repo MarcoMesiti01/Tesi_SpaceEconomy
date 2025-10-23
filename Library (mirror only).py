@@ -32,17 +32,17 @@ def investorInfo(df): #Returns a df of the columns: Investor, Investor type
                         if "," in listInvestorTypeSplit[a]:
                             listInvestorTypeSplitSplit=listInvestorTypeSplit[a].split(",")
                             for t in listInvestorTypeSplitSplit:
-                                rows.append({"Investor" : listInvestorSplit[a], "Investor type" : t})
+                                rows.append({"Investor" : listInvestorSplit[a], "investor_types" : t})
                         else:
-                            add={"Investor" : listInvestorSplit[a], "Investor type" : listInvestorTypeSplit[a]}
+                            add={"Investor" : listInvestorSplit[a], "investor_types" : listInvestorTypeSplit[a]}
                             rows.append(add)
                 else:
                     if not pd.isna(listInvestor[i]) and "," in listInvestorType[i]:
                             listInvestorTypeSplit=listInvestorType[i].split(",")
                             for t in listInvestorTypeSplit:
-                                rows.append({"Investor" : listInvestor[i], "Investor type" : t})
+                                rows.append({"Investor" : listInvestor[i], "investor_types" : t})
                     else:
-                        add={"Investor" : listInvestor[i], "Investor type" : listInvestorType[i]}
+                        add={"Investor" : listInvestor[i], "investor_types" : listInvestorType[i]}
                         rows.append(add)
             except(TypeError) as e: 
                 traceback.print_exc()
@@ -105,8 +105,8 @@ def roundSplit(listAdd, df):#Divides each round made in each rows, the columns a
                 traceback.print_exc() 
                 j=j+1
             continue
-    final_df=pd.DataFrame(listAdd, columns=["Investor", "Amount", "Currency", "Amount in EUR", "Round type", "Round date", "Target firm", "Target firm ID","Firm country"])
-    final_df.astype({"Investor":"string", "Amount":"float", "Currency":"string", "Amount in EUR":"float", "Round type":"string", "Round date":"string", "Target firm":"string", "Target firm ID" : "int", "Firm country":"string"})
+    final_df=pd.DataFrame(listAdd, columns=["Investor", "Amount", "Currency", "Amount in EUR", "Round type", "Round date", "Target firm", "company_id","company_country"])
+    final_df.astype({"Investor":"string", "Amount":"float", "Currency":"string", "Amount in EUR":"float", "Round type":"string", "Round date":"string", "Target firm":"string", "company_id" : "int", "company_country":"string"})
     print(j)
     return final_df
 
@@ -243,16 +243,16 @@ def to_iso3(name:str)->str:
         return None
 
 def makeMap(df: pd.DataFrame, column: str) -> px.choropleth:
-    df["Country"]=df["Firm country"].apply(to_iso3)
-    listColumns=["Country", "Firm country", column]
+    df["Country"]=df["company_country"].apply(to_iso3)
+    listColumns=["Country", "company_country", column]
     df=df[listColumns]
     missing=df[df["Country"].isna()]
     if not missing.empty:
         print(missing)
-    fig=px.choropleth(df, locations="Country", color=column, hover_name="Firm country", color_continuous_scale="Reds", projection="natural earth")
+    fig=px.choropleth(df, locations="Country", color=column, hover_name="company_country", color_continuous_scale="Reds", projection="natural earth")
     fig.update_layout(title=column, coloraxis_colorbar_title="Value", margin=dict(l=0, r=0, t=40, b=0),)
     for i, row in df.iterrows():
-        fig.add_trace(go.Scattergeo(locationmode="country names", locations=[row["Firm country"]], text=[round(row[column])], mode="text", showlegend=False ))
+        fig.add_trace(go.Scattergeo(locationmode="country names", locations=[row["company_country"]], text=[round(row[column])], mode="text", showlegend=False ))
     fig.show() 
     return fig
 

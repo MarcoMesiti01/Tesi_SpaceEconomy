@@ -28,32 +28,32 @@ df_temp["Class"]=df_temp["Tags"].apply(lambda x: classify(x) if not pd.isna(x) e
 
 #merging the information in the round dataframe
 df_round=mylib.filterExits(df_round)
-df_fin=pd.merge(left=df_round, right=df_temp, how="left", left_on="Target firm ID", right_on="ID")
-df_fin=df_fin[["Investor", "Target firm ID", "Class", "AmountUSD"]]
-df_fin["AmountUSD"]=df_fin["AmountUSD"].apply(lambda x: x/1000000000 if not pd.isna(x) else x)
+df_fin=pd.merge(left=df_round, right=df_temp, how="left", left_on="company_id", right_on="ID")
+df_fin=df_fin[["Investor", "company_id", "Class", "round_amount_usd"]]
+df_fin["round_amount_usd"]=df_fin["round_amount_usd"].apply(lambda x: x/1000000000 if not pd.isna(x) else x)
 df_fin=pd.merge(left=df_fin, right=df_inv, how="left", on="Investor")
-df_fin=df_fin[["Investor type", "Class", "AmountUSD"]]
+df_fin=df_fin[["investor_types", "Class", "round_amount_usd"]]
 
 # split multi-category investors and share the amount evenly across categories
-df_fin = df_fin[df_fin["AmountUSD"].notna()]
-df_fin = df_fin[df_fin["Investor type"].notna()]
-df_fin["Investor type"] = (
-    df_fin["Investor type"]
+df_fin = df_fin[df_fin["round_amount_usd"].notna()]
+df_fin = df_fin[df_fin["investor_types"].notna()]
+df_fin["investor_types"] = (
+    df_fin["investor_types"]
     .astype(str)
     .str.split(",")
     .apply(lambda types: [t.strip() for t in types if t.strip()])
 )
-df_fin = df_fin[df_fin["Investor type"].map(len) > 0]
-df_fin["split_count"] = df_fin["Investor type"].map(len)
-df_fin["AmountUSD"] = df_fin["AmountUSD"] / df_fin["split_count"]
-df_fin = df_fin.explode("Investor type")
-df_fin["Investor type"] = df_fin["Investor type"].str.strip()
+df_fin = df_fin[df_fin["investor_types"].map(len) > 0]
+df_fin["split_count"] = df_fin["investor_types"].map(len)
+df_fin["round_amount_usd"] = df_fin["round_amount_usd"] / df_fin["split_count"]
+df_fin = df_fin.explode("investor_types")
+df_fin["investor_types"] = df_fin["investor_types"].str.strip()
 df_fin.drop(columns="split_count", inplace=True)
 
-df_fin=df_fin[df_fin["AmountUSD"] != 0]
+df_fin=df_fin[df_fin["round_amount_usd"] != 0]
 
 #creating the dataframe for up, down, other
-pivot=df_fin.pivot_table(index="Investor type", columns="Class", values="AmountUSD", aggfunc="sum", fill_value=0)
+pivot=df_fin.pivot_table(index="investor_types", columns="Class", values="round_amount_usd", aggfunc="sum", fill_value=0)
 pivot.sort_values(by="Downstream", inplace=True, ascending=False)
 pivot=pivot[["Downstream", "Upstream", "Other"]]
 print(pivot)
@@ -62,29 +62,29 @@ print(pivot)
 pivot["Total"]=pivot[["Downstream", "Upstream", "Other"]].sum(axis=1)
 pivot.sort_values(by="Total", inplace=True, ascending=False)
 chart_data=pivot.head(10).reset_index()
-investor_order = chart_data["Investor type"].tolist()
+investor_order = chart_data["investor_types"].tolist()
 
 chart_long = chart_data.melt(
-    id_vars="Investor type",
+    id_vars="investor_types",
     value_vars=["Upstream", "Downstream", "Other"],
     var_name="Investment split",
-    value_name="AmountUSD"
+    value_name="round_amount_usd"
 )
-chart_long["Investor type"] = pd.Categorical(
-    chart_long["Investor type"], categories=investor_order, ordered=True
+chart_long["investor_types"] = pd.Categorical(
+    chart_long["investor_types"], categories=investor_order, ordered=True
 )
 
 fig = px.bar(
     chart_long,
-    x="Investor type",
-    y="AmountUSD",
+    x="investor_types",
+    y="round_amount_usd",
     color="Investment split",
     title="Top 10 investor types by investment composition",
     labels={
-        "Investor type": "Investor type",
-        "AmountUSD": "Amount invested (B USD)",
+        "investor_types": "investor_types",
+        "round_amount_usd": "Amount invested (B USD)",
         "Investment split": "Investment category",
     },
 )
-fig.update_layout(barmode="stack", xaxis_title="Investor type", yaxis_title="Amount invested (B USD)")
+fig.update_layout(barmode="stack", xaxis_title="investor_types", yaxis_title="Amount invested (B USD)")
 fig.show()

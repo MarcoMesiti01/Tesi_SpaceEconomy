@@ -27,7 +27,7 @@ def main() -> None:
 
     tag_column = "Target tags"
     # Pull downstream/upstream labels from the main company table.
-    merge_key = next((col for col in ["Target firm ID", "Firm ID"] if col in df_round.columns), None)
+    merge_key = next((col for col in ["company_id", "Firm ID"] if col in df_round.columns), None)
 
     if merge_key and {"ID", "Tags"}.issubset(df_temp.columns):
         tags_lookup = (
@@ -49,10 +49,10 @@ def main() -> None:
 
     df_round["Investment category"] = df_round[tag_column].apply(classify_investment)
 
-    df_round = df_round.merge(df_inv[["Investor", "Investor type"]], on="Investor", how="left")
-    df_round["Investor type"].fillna("Unknown", inplace=True)
+    df_round = df_round.merge(df_inv[["Investor", "investor_types"]], on="Investor", how="left")
+    df_round["investor_types"].fillna("Unknown", inplace=True)
 
-    grouped = df_round.groupby(["Investor type", "Investment category"], dropna=False)["Amount in EUR"].sum()
+    grouped = df_round.groupby(["investor_types", "Investment category"], dropna=False)["Amount in EUR"].sum()
     pivot = grouped.unstack(fill_value=0.0)
 
     for column in ["Upstream", "Downstream", "Other"]:
@@ -72,31 +72,31 @@ def main() -> None:
 
     top10 = pivot.head(10).copy()
     chart_data = top10.drop(columns="Total").copy()
-    investor_order = chart_data["Investor type"].tolist()
+    investor_order = chart_data["investor_types"].tolist()
 
     chart_long = chart_data.melt(
-        id_vars="Investor type",
+        id_vars="investor_types",
         value_vars=["Amount upstream", "Amount downstream", "Other"],
         var_name="Investment split",
         value_name="Amount in EUR"
     )
-    chart_long["Investor type"] = pd.Categorical(
-        chart_long["Investor type"], categories=investor_order, ordered=True
+    chart_long["investor_types"] = pd.Categorical(
+        chart_long["investor_types"], categories=investor_order, ordered=True
     )
 
     fig = px.bar(
         chart_long,
-        x="Investor type",
+        x="investor_types",
         y="Amount in EUR",
         color="Investment split",
         title="Top 10 investor types by investment composition",
         labels={
-            "Investor type": "Investor type",
+            "investor_types": "investor_types",
             "Amount in EUR": "Amount invested (EUR)",
             "Investment split": "Investment category",
         },
     )
-    fig.update_layout(barmode="stack", xaxis_title="Investor type", yaxis_title="Amount invested (EUR)")
+    fig.update_layout(barmode="stack", xaxis_title="investor_types", yaxis_title="Amount invested (EUR)")
     fig.show()
 
     pivot.drop(columns="Total", inplace=True)

@@ -8,30 +8,30 @@ df_round=mylib.openDB("rounds")
 db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
 db_exp=mylib.space(db_exp, "company_id", True)
 db_exp=db_exp["company_id"]
-df_round=df_round[df_round["Target firm ID"].isin(db_exp)]
+df_round=df_round[df_round["company_id"].isin(db_exp)]
 df_round=mylib.filterExits(df_round)
-df_round=df_round[["Firm country", "Round date", "AmountUSD"]]
-df_round.rename(columns={"Firm country":"Country"}, inplace=True)
+df_round=df_round[["company_country", "Round date", "round_amount_usd"]]
+df_round.rename(columns={"company_country":"Country"}, inplace=True)
 df_round=mylib.toEU(df_round)
-df_round.rename(columns={"Country":"Firm country"}, inplace=True)
-df_round["AmountUSD"]=df_round["AmountUSD"]/1000000000
-df_top_c=df_round[["Firm country", "AmountUSD"]].groupby("Firm country").sum()
+df_round.rename(columns={"Country":"company_country"}, inplace=True)
+df_round["round_amount_usd"]=df_round["round_amount_usd"]/1000000000
+df_top_c=df_round[["company_country", "round_amount_usd"]].groupby("company_country").sum()
 df_top_c.reset_index(inplace=True)
-df_top_c.sort_values(by="AmountUSD", inplace=True, ascending=False)
-top_c=df_top_c["Firm country"].head(5).to_list()
+df_top_c.sort_values(by="round_amount_usd", inplace=True, ascending=False)
+top_c=df_top_c["company_country"].head(5).to_list()
 df_round["Round date"]=df_round["Round date"].apply(mylib.getYear, by_row="compat")
 df_round=df_round[df_round["Round date"]>2010]
-df_round=df_round[df_round["Firm country"].isin(top_c)]
-df_round=df_round.groupby(by=["Firm country", "Round date"], sort=True).sum()
+df_round=df_round[df_round["company_country"].isin(top_c)]
+df_round=df_round.groupby(by=["company_country", "Round date"], sort=True).sum()
 #df_round.reset_index(inplace=True)
-#df_round.sort_values(by="AmountUSD", inplace=True, ascending=False)
-df_round=df_round.groupby("Firm country")
+#df_round.sort_values(by="round_amount_usd", inplace=True, ascending=False)
+df_round=df_round.groupby("company_country")
 filled_markers = ['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'P', 'X']
 j=0
 plt.figure(figsize=(8,5))
 for x,y in df_round:
     years=y.index.get_level_values("Round date")
-    plt.plot(years, y["AmountUSD"], marker=filled_markers[j], label=x)
+    plt.plot(years, y["round_amount_usd"], marker=filled_markers[j], label=x)
     j+=1
     if j>=5:
         break

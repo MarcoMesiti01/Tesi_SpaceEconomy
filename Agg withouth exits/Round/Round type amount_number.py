@@ -7,19 +7,19 @@ df_merge = mylib.openDB("rounds")
 db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
 db_exp=mylib.space(db_exp, "company_id", True)
 db_exp=db_exp["company_id"]
-df_merge=df_merge[df_merge["Target firm ID"].isin(db_exp)]
-df_rt_og = df_merge[["Round type", "AmountUSD"]]
+df_merge=df_merge[df_merge["company_id"].isin(db_exp)]
+df_rt_og = df_merge[["Round type", "round_amount_usd"]]
 df_rt_og=mylib.filterExits(df_rt_og)
 print(df_rt_og.columns)
 print(df_rt_og)
-df_rt_og["AmountUSD"] = pd.to_numeric(df_rt_og["AmountUSD"], errors="coerce")
-df_rt_og["AmountUSD"]=df_rt_og["AmountUSD"].apply(lambda x: x/1000000000 if not pd.isna(x) else x)
+df_rt_og["round_amount_usd"] = pd.to_numeric(df_rt_og["round_amount_usd"], errors="coerce")
+df_rt_og["round_amount_usd"]=df_rt_og["round_amount_usd"].apply(lambda x: x/1000000000 if not pd.isna(x) else x)
 
 # aggregate by sum
 df_rt_sum = df_rt_og.groupby(by="Round type", group_keys=False).sum()
 df_rt_sum.reset_index(inplace=True)
 print(df_rt_sum["Round type"].to_list())
-df_rt_sum = df_rt_sum[["Round type", "AmountUSD"]]
+df_rt_sum = df_rt_sum[["Round type", "round_amount_usd"]]
 df_rt_sum.columns = ["Round type", "sum"]
 df_rt_sum.sort_values(by="sum", inplace=True)
 df_rt_sum["Round type"]=df_rt_sum["Round type"].mask(df_rt_sum["Round type"] == "PROJECT, REAL ESTATE, INFRASTRUCTURE FINANCE", other="PROJ, RE, IF")
@@ -30,7 +30,7 @@ print(df_rt_sum[df_rt_sum["Round type"] == "PROJ, RE, IF"])
 df_rt_avg = df_rt_og.groupby(by="Round type", group_keys=False).mean()
 df_rt_avg.reset_index(inplace=True)
 df_rt_avg["Round type"]=df_rt_avg["Round type"].mask(df_rt_avg["Round type"] == "PROJECT, REAL ESTATE, INFRASTRUCTURE FINANCE", other="PROJ, RE, IF")
-df_rt_avg = df_rt_avg[["Round type", "AmountUSD"]]
+df_rt_avg = df_rt_avg[["Round type", "round_amount_usd"]]
 df_rt_avg.columns = ["Round type", "average"]
 
 # align totals and averages so the chart uses a consistent order

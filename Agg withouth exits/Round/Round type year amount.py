@@ -7,7 +7,7 @@ EXPORT_PATH = "DB_Out/DB_export.parquet"
 
 def get_space_rounds() -> pd.DataFrame:
     """Return investment rounds limited to space companies."""
-    columns_rounds = ["Target firm ID", "Round type", "Round date", "AmountUSD"]
+    columns_rounds = ["company_id", "Round type", "Round date", "round_amount_usd"]
     rounds = pd.read_parquet(ROUNDS_PATH, columns=columns_rounds)
     rounds=rounds[rounds["Round date"]>pd.to_datetime("2010")]
 
@@ -16,9 +16,9 @@ def get_space_rounds() -> pd.DataFrame:
     companies = mylib.space(companies, "company_id",True)
     space_ids = companies["company_id"].dropna().astype(str)
 
-    rounds = rounds.dropna(subset=["Target firm ID"])
-    rounds["Target firm ID"] = rounds["Target firm ID"].astype(str)
-    rounds = rounds[rounds["Target firm ID"].isin(set(space_ids))]
+    rounds = rounds.dropna(subset=["company_id"])
+    rounds["company_id"] = rounds["company_id"].astype(str)
+    rounds = rounds[rounds["company_id"].isin(set(space_ids))]
     return rounds
 
 def _parse_round_date(value) -> pd.Timestamp:
@@ -41,13 +41,13 @@ def _parse_round_date(value) -> pd.Timestamp:
 def prepare_yearly_amounts(rounds: pd.DataFrame) -> pd.DataFrame:
     """Aggregate total USD invested by year and round type, excluding exits."""
     filtered = mylib.filterExits(rounds.copy())
-    filtered["AmountUSD"] = pd.to_numeric(filtered["AmountUSD"], errors="coerce")
+    filtered["round_amount_usd"] = pd.to_numeric(filtered["round_amount_usd"], errors="coerce")
     filtered["Round date"] = filtered["Round date"].apply(_parse_round_date)
-    filtered = filtered.dropna(subset=["Round type", "Round date", "AmountUSD"])
+    filtered = filtered.dropna(subset=["Round type", "Round date", "round_amount_usd"])
     filtered["Year"] = filtered["Round date"].dt.year.astype(int)
 
     yearly_amounts = (
-        filtered.groupby(["Year", "Round type"], as_index=False)["AmountUSD"].sum()
+        filtered.groupby(["Year", "Round type"], as_index=False)["round_amount_usd"].sum()
     )
     return yearly_amounts
 
@@ -56,7 +56,7 @@ def plot_yearly_round_type(aggregated: pd.DataFrame) -> None:
         print("No data available after filtering for space companies and removing exits.")
         return
 
-    pivot = aggregated.pivot(index="Year", columns="Round type", values="AmountUSD").fillna(0)
+    pivot = aggregated.pivot(index="Year", columns="Round type", values="round_amount_usd").fillna(0)
     pivot.sort_index(inplace=True)
 
     # Order stacked bars by total volume so the legend highlights the largest contributors first.

@@ -73,17 +73,17 @@ df_firms["company_city"]=df_firms["company_city"].replace({"New York City":"New 
 df_world = df_firms[df_firms["company_country"].notna()].copy()
 df_world = df_world[df_world["company_country"] != "United States"]
 df_world_counts = df_world.groupby("company_country").size().reset_index(name="Firms")
-df_world_counts.rename(columns={"company_country": "Firm country"}, inplace=True)
+df_world_counts.rename(columns={"company_country": "company_country"}, inplace=True)
 
 # Convert to ISO3 using Library helper and drop NAs
-df_world_counts["CountryISO3"] = df_world_counts["Firm country"].apply(mylib.to_iso3)
+df_world_counts["CountryISO3"] = df_world_counts["company_country"].apply(mylib.to_iso3)
 df_world_counts = df_world_counts[df_world_counts["CountryISO3"].notna()]
 
 fig_world = px.choropleth(
     df_world_counts,
     locations="CountryISO3",
     color="Firms",
-    hover_name="Firm country",
+    hover_name="company_country",
     color_continuous_scale="Reds",
     projection="natural earth",
 )
