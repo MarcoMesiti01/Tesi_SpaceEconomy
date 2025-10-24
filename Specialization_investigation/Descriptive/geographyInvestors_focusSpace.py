@@ -14,7 +14,7 @@ except ImportError:
 
 # Load data from DB_Out using Library helpers
 df_inv = mylib.openDB("investors")
-df_inv=spaceSpecialization(df_inv, 2015, 0.2)
+df_inv=spaceSpecialization(df_inv, 2020, 0.2)
 df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)].copy()  # columns include: ID, Investor country, Investor city
 df_exp = mylib.openDB("export")
 
@@ -28,12 +28,12 @@ df_exp_ids = (
 )
 
 # Filter investors to only those that appear in the (space-filtered) export
-df_inv = df_inv[df_inv["ID"].isin(df_exp_ids["investor_id"])].copy()
+df_inv = df_inv[df_inv["investor_id"].isin(df_exp_ids["investor_id"])].copy()
 
 # Normalize columns we need
 df_inv.rename(columns={
-    "Investor country": "Country",
-    "Investor city": "City",
+    "investor_country": "Country",
+    "investor_city": "City",
 }, inplace=True)
 
 # Build world-level country counts excluding the USA (will map USA at state level separately)
@@ -44,7 +44,7 @@ df_world = (
 
 # Exclude the USA with exact match (data is standardized)
 df_world = df_world[df_world["Country"] != "United States"]
-df_world = df_world[["Country", "ID"]].groupby("Country").count().reset_index()
+df_world = df_world[["Country", "investor_id"]].groupby("Country").count().reset_index()
 df_world["CountryISO3"] = df_world["Country"].apply(mylib.to_iso3)
 df_world = df_world[df_world["CountryISO3"].notna()]
 
@@ -52,7 +52,7 @@ df_world = df_world[df_world["CountryISO3"].notna()]
 fig_world = px.choropleth(
     df_world,
     locations="CountryISO3",
-    color="ID",
+    color="investor_id",
     hover_name="Country",
     color_continuous_scale="Reds",
     projection="natural earth",
@@ -67,7 +67,7 @@ for _, row in df_world.iterrows():
         go.Scattergeo(
             locationmode="ISO-3",
             locations=[row["CountryISO3"]],
-            text=[int(row["ID"])],
+            text=[int(row["investor_id"])],
             mode="text",
             showlegend=False,
         )
@@ -127,6 +127,8 @@ def build_city_to_state_map(cities):
 
 
 df_usa = df_inv[df_inv["Country"] == "United States"].copy()
+df_usa["City"]=df_usa["City"].replace({"New York City":"New York", "Washington DC":"Washington"})
+print(len(df_usa))
 
 # Resolve US cities to state codes using pgeocode to avoid manual catalogs
 unique_cities = (
@@ -147,8 +149,8 @@ if missing_cities:
 df_usa["StateCode"] = df_usa["City"].map(city_state_map)
 df_usa = df_usa[df_usa["StateCode"].notna()]
 
-df_usa_counts = df_usa[["StateCode", "ID"]].groupby("StateCode").count().reset_index()
-df_usa_counts.rename(columns={"ID": "Investors"}, inplace=True)
+df_usa_counts = df_usa[["StateCode", "investor_id"]].groupby("StateCode").count().reset_index()
+df_usa_counts.rename(columns={"investor_id": "Investors"}, inplace=True)
 
 fig_usa = go.Figure(
     data=go.Choropleth(
@@ -157,12 +159,26 @@ fig_usa = go.Figure(
         locationmode="USA-states",
         colorscale="Reds",
         colorbar_title="Investors",
+        text="Investors"
     )
 )
 fig_usa.update_layout(
     title_text="Investors per US State",
     geo_scope="usa",
     margin=dict(l=0, r=0, t=40, b=0),
+)
+
+# Overlay numbers on each state using existing counts
+fig_usa.add_trace(
+    go.Scattergeo(
+        locationmode="USA-states",
+        locations=df_usa_counts["StateCode"],
+        text=df_usa_counts["Investors"].astype(int).astype(str),
+        mode="text",
+        textfont=dict(color="black", size=10),
+        showlegend=False,
+        hoverinfo="skip",
+    )
 )
 
 # Show both figures

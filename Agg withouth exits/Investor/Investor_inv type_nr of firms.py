@@ -10,7 +10,7 @@ db_round=db_round[db_round["company_id"].isin(db_exp)]
 
 db_round=mylib.filterExits(db_round)
 
-df_r=db_round[["investor_id", "Investor", "round_amount_usd"]].groupby(by=["investor_id","Investor"]).count()
+df_r=db_round[["investor_id", "investor_name", "round_amount_usd"]].groupby(by=["investor_id","Investor"]).count()
 df_r.reset_index(inplace=True)
 df_r.sort_values(inplace=True, by="round_amount_usd", ascending=False)
 df_fin=pd.merge(left=df_r, right=db_inv, how="left", left_on="investor_id", right_on="ID")

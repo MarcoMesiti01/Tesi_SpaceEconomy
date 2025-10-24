@@ -16,15 +16,16 @@ df_round_inv = pd.merge(
     right=df_inv,
     how="left",
     left_on="investor_id",
-    right_on="ID",
+    right_on="investor_id",
 )
 print(df_round_inv.size)
 df_round_inv = mylib.filterExits(df_round_inv)
 df_round_inv = df_round_inv[["investor_types", "round_amount_usd"]]
+df_round_inv=df_round_inv[(~df_round_inv["investor_types"].str.contains("Venture capital", case=False, na=False))&(~df_round_inv["investor_types"].str.contains("venture_capital", case=False, na=False))]
 print(df_round_inv.size)
 
 df_round_inv = df_round_inv[df_round_inv["round_amount_usd"] != 0]
-df_round_inv = df_round_inv[df_round_inv["investor_types"].notna()]
+df_round_inv = df_round_inv[(df_round_inv["investor_types"].notna()) & (~df_round_inv["investor_types"].str.contains("Not defined", case=False, na=False))]
 
 # split multi-category investors and apportion funding equally across categories
 df_round_inv["investor_types"] = (

@@ -3,17 +3,17 @@ import Library as mylib
 import matplotlib.pyplot as plt
 
 df=mylib.openDB("rounds")
-db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
-db_exp=mylib.space(db_exp, "company_id", True)
-db_exp=db_exp["company_id"]
-df=df[df["company_id"].isin(db_exp)]
+#db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
+#db_exp=mylib.space(db_exp, "company_id", True)
+#db_exp=db_exp["company_id"]
+#df=df[df["company_id"].isin(db_exp)]
 
 df=df[df["round_amount_usd"]!=0]
 df["round_amount_usd"]=df["round_amount_usd"].apply(lambda x: x/1000000 if not pd.isna(x) else x)
 df=mylib.filterExits(df)
-df=df[df["Round type"]!="NULL"]
+df=df[df["round_label"]!="NULL"]
 df_sort=df.sort_values(by="round_amount_usd", ascending=False)
-df_sort=df_sort[["Investor", "round_amount_usd"]]
+df_sort=df_sort[["investor_id", "round_amount_usd"]]
 print(df_sort[:10])
 df_onemln=df[df["round_amount_usd"]<1]
 df_threemln=df[(df["round_amount_usd"]>=1) & (df["round_amount_usd"]<3)]
@@ -39,11 +39,11 @@ amountSums=[df_onemln, df_threemln, df_fivemln, df_tenmln, df_tentwentymln, df_m
 plt.bar(label, listSizes)
 plt.xlabel("Round amount (MLN)")
 plt.ylabel("Number of rounds")
-plt.title("Number of rounds for specific round sizes (Space)")
+plt.title("Number of rounds for specific round sizes")
 plt.show()
 plt.bar(label, amountSums)
 plt.xlabel("Round amount (MLN)")
 plt.ylabel("Amount invested")
-plt.title("Amount invested per round size (Space)")
+plt.title("Amount invested per round size")
 plt.show()
 

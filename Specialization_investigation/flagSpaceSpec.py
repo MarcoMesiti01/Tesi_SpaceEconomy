@@ -9,39 +9,168 @@ def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshol
     """
     Adds a flag to the investor dataset
     """
-    round = mylib.openDB("rounds")
-    round.fillna({"round_amount_usd":0}, inplace=True)
-    upDown=mylib.openDB("updown")
-    #amount invested in space by each investor
-    roundSpace=pd.merge(left=round, right=upDown, left_on="company_id", right_index=True, how="inner")
-    roundSpace=roundSpace[roundSpace["round_date"]>pd.to_datetime(str(threshold_year), format="%Y")]
-    roundSpace=roundSpace[["investor_id", "round_amount_usd"]].copy()
-    roundSpace=roundSpace.groupby(by="investor_id").sum()
-    roundSpace.rename(columns={"round_amount_usd":"investor_amount_space"}, inplace=True)
+    # Validate inputs
+    if threshold_percentage > 1 or threshold_percentage < 0:
+        raise Exception(f"threshold must be between 0 and 1 it was: {threshold_percentage}")
 
-    #recording the information in the investor table
-    df_investor=pd.merge(left=df_investor, right=roundSpace, left_on="investor_id", right_index=True, how="left")
-    df_investor.fillna({"investor_amount_space":0}, inplace=True)
+    if "investor_id" not in df_investor.columns:
+        raise KeyError("df_investor must contain column 'investor_id'")
 
-    #investor_total_amount invested by each investor in total
-    round=round[round["round_date"]>pd.to_datetime(str(threshold_year), format="%Y")]
-    invAmount=round[["investor_id", "round_amount_usd", "investors_round"]].groupby(by="investor_id").agg({"round_amount_usd":"sum", "investors_round":"count"})
-    invAmount.rename(columns={"round_amount_usd":"investor_total_amount", "investors_round":"investor_number_rounds"}, inplace=True)
-    invAmount.fillna(0, inplace=True)
+    # Venture capital flag (case-insensitive; matches 'venture capital' or 'venture_capital')
+    vc_pattern = r"\bventure[_ ]?capital\b"
+    if "investor_types" in df_investor.columns:
+        types_series = df_investor["investor_types"].astype(str)
+    else:
+        inv_db = mylib.openDB("investors")
+        if "investor_types" not in inv_db.columns:
+            raise KeyError("investors DB must contain column 'investor_types'")
+        types_map = inv_db.set_index("investor_id")["investor_types"].astype(str)
+        types_series = df_investor["investor_id"].map(types_map).fillna("")
 
-    #recording the information in the investor table
-    df_investor=pd.merge(left=df_investor, right=invAmount, how="left", right_index=True, left_on="investor_id")
-    print(df_investor)
-    df_investor.fillna({"investor_total_amount" : 0, "investor_number_rounds" : 0}, inplace=True)
-    df_investor["investor_flag_space"]=df_investor.apply(lambda x: 1 if x["investor_total_amount"]>0 and x["investor_amount_space"]/x["investor_total_amount"]>=threshold_percentage and x["investor_number_rounds"]>4 else 0, axis=1)
-    df_investor["investor_flag_venture_capital"]=df_investor["investor_types"].apply(lambda x: 1 if "Venture capital" in x or "venture_capital" in x else 0)
-    #df_investor=df_investor[(df_investor["investor_flag_space"]==1) & (df_investor["investor_flag_venture_capital"]==1) & (df_investor["Number of rounds"]>1)]
+    df_investor = df_investor.copy()
+    df_investor["investor_flag_venture_capital"] = (
+        types_series.str.contains(vc_pattern, case=False, regex=True, na=False).astype(int)
+    )
+
+    # Exclude investors with fewer than 4 total rounds (overall, not window-limited)
+    rounds_all_for_filter = mylib.openDB("rounds")
+    if "investor_id" not in rounds_all_for_filter.columns:
+        raise KeyError("rounds DB must contain column 'investor_id'")
+    counts_all = (
+        rounds_all_for_filter.dropna(subset=["investor_id"]).groupby("investor_id").size().rename("rounds_count")
+    )
+    eligible_ids = set(counts_all[counts_all >= 4].index)
+    df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
+
+    # Simplified specialization: consider window [threshold_year .. 2025] inclusive
+    start_year = int(threshold_year)
+    end_year = 2025
+
+    rounds = mylib.openDB("rounds")
+    needed_cols = ["company_id", "investor_id", "round_date", "round_amount_usd"]
+    missing = [c for c in needed_cols if c not in rounds.columns]
+    if missing:
+        raise KeyError(f"Missing columns in rounds table: {missing}")
+
+    rounds = rounds[needed_cols].copy()
+    rounds["round_amount_usd"] = pd.to_numeric(rounds["round_amount_usd"], errors="coerce").fillna(0.0)
+    rounds["round_date"] = pd.to_datetime(rounds["round_date"], errors="coerce")
+    rounds = rounds.dropna(subset=["investor_id", "round_date"])  # cannot use rows missing investor or date
+
+    # Restrict to [start_year .. 2025]
+    rounds = rounds[(rounds["round_date"].dt.year >= start_year) & (rounds["round_date"].dt.year <= end_year)]
+
+    # Add space flag and compute space amounts
+    rounds = mylib.space(rounds, column="company_id", filter=False)
+    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["Space"].fillna(0) == 1).astype(int)
+
+    # Restrict to investors provided in df_investor
+    inv_ids = set(df_investor["investor_id"].dropna().unique())
+    if inv_ids:
+        rounds = rounds[rounds["investor_id"].isin(inv_ids)]
+
+    # Aggregate totals for the window
+    agg = (
+        rounds.groupby("investor_id")
+        .agg(total_window=("round_amount_usd", "sum"), space_window=("space_amount", "sum"))
+    )
+
+    # Compute specialization flag: ratio >= threshold (0 when total is 0)
+    agg["ratio"] = agg.apply(lambda r: 0.0 if r["total_window"] == 0 else r["space_window"] / r["total_window"], axis=1)
+    agg["investor_flag_space"] = (agg["ratio"] >= threshold_percentage).astype(int)
+
+    # Merge flags back; investors without history default to 0
+    df_investor = pd.merge(
+        df_investor,
+        agg[["investor_flag_space"]],
+        how="left",
+        left_on="investor_id",
+        right_index=True,
+    )
+    df_investor["investor_flag_space"] = df_investor["investor_flag_space"].fillna(0).astype(int)
+
     return df_investor
 
+def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_percentage: float) -> pd.DataFrame:
+    """Compute percentage of space investments over total for [threshold_year..2025].
+
+    Accepts an investors dataframe, a starting `threshold_year`, and a `threshold_percentage`
+    (not used for computation, kept for interface symmetry). Returns the input dataframe
+    with a new column `space_percentage` in [0, 1], computed as:
+        sum(space round_amount_usd) / sum(total round_amount_usd)
+    over the inclusive window [threshold_year..2025]. Investors with no activity receive 0.
+    """
+
+    if "investor_id" not in df_investor.columns:
+        raise KeyError("df_investor must contain column 'investor_id'")
+
+    # Exclude investors with fewer than 4 total rounds (overall, not window-limited)
+    rounds_all_for_filter = mylib.openDB("rounds")
+    if "investor_id" not in rounds_all_for_filter.columns:
+        raise KeyError("rounds DB must contain column 'investor_id'")
+    counts_all = (
+        rounds_all_for_filter.dropna(subset=["investor_id"]).groupby("investor_id").size().rename("rounds_count")
+    )
+    eligible_ids = set(counts_all[counts_all >= 4].index)
+    df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
+
+    start_year = int(threshold_year)
+    end_year = 2025
+
+    rounds = mylib.openDB("rounds")
+    needed_cols = ["company_id", "investor_id", "round_date", "round_amount_usd"]
+    missing = [c for c in needed_cols if c not in rounds.columns]
+    if missing:
+        raise KeyError(f"Missing columns in rounds table: {missing}")
+
+    rounds = rounds[needed_cols].copy()
+    rounds["round_amount_usd"] = pd.to_numeric(rounds["round_amount_usd"], errors="coerce").fillna(0.0)
+    rounds["round_date"] = pd.to_datetime(rounds["round_date"], errors="coerce")
+    rounds = rounds.dropna(subset=["investor_id", "round_date"])  # ensure usable rows
+
+    # Restrict to [start_year .. 2025]
+    rounds = rounds[(rounds["round_date"].dt.year >= start_year) & (rounds["round_date"].dt.year <= end_year)]
+
+    # Add space flag and compute space amounts
+    rounds = mylib.space(rounds, column="company_id", filter=False)
+    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["Space"].fillna(0) == 1).astype(int)
+
+    # Restrict to investors provided in df_investor
+    inv_ids = set(df_investor["investor_id"].dropna().unique())
+    if inv_ids:
+        rounds = rounds[rounds["investor_id"].isin(inv_ids)]
+
+    # Aggregate totals for the window and compute ratio
+    agg = (
+        rounds.groupby("investor_id")
+        .agg(total_window=("round_amount_usd", "sum"), space_window=("space_amount", "sum"))
+    )
+
+    agg["space_percentage"] = agg.apply(
+        lambda r: 0.0 if r["total_window"] == 0 else r["space_window"] / r["total_window"], axis=1
+    )
+
+    # Merge back; default to 0 if missing
+    df_out = pd.merge(
+        df_investor.copy(),
+        agg[["space_percentage"]],
+        how="left",
+        left_on="investor_id",
+        right_index=True,
+    )
+    df_out["space_percentage"] = df_out["space_percentage"].fillna(0.0)
+
+    return df_out
+
 def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd.DataFrame:
-    """The function accept a dataframe with the columns of the DB_investors and returns a dataframe having as index the investor_id and columns from 2010 to 2025 for each investor, that have the value 1 if the investor was specialised in that year and 0 if not. 
-    The specialization is defined considering the 5 years before the one it is flagged
-    i.e. for 2016 it will be considered from 2010 to 2015"""
+    """Return a matrix of specialization flags by year (2010..2025).
+
+    For each investor (VC only) and year Y, the specialization ratio is
+    computed over a 5-year rolling window that EXCLUDES the current year
+    (i.e., years [Y-5..Y-1], clipped at 2010). Flag = 1 when the ratio of
+    space amount to total amount in that window is >= threshold_percentage.
+    This truncates 2025 calculations to use data up to 2024.
+    """
     if threshold_percentage > 1 or threshold_percentage < 0:
         raise Exception(f"threshold must be between 0 and 1 it was: {threshold_percentage}")
 
@@ -73,6 +202,16 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
     base_ids = df_investor["investor_id"].dropna().unique()
     vc_set = set(vc_ids)
     filtered_ids = [iid for iid in base_ids if iid in vc_set]
+
+    # Now exclude investors with fewer than 4 total rounds (overall, not window-limited)
+    rounds_all_for_filter = mylib.openDB("rounds")
+    if "investor_id" not in rounds_all_for_filter.columns:
+        raise KeyError("rounds DB must contain column 'investor_id'")
+    counts_all = (
+        rounds_all_for_filter.dropna(subset=["investor_id"]).groupby("investor_id").size().rename("rounds_count")
+    )
+    eligible_ids = set(counts_all[counts_all >= 4].index)
+    filtered_ids = [iid for iid in filtered_ids if iid in eligible_ids]
     investor_ids = pd.Index(filtered_ids, name="investor_id")
 
     # Load rounds and enrich with space flag
@@ -92,8 +231,8 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
     # Drop rows without investor_id or date since they cannot be assigned
     rounds = rounds.dropna(subset=["investor_id", "round_date"])  # investor_id can be float; keep as-is
 
-    # Consider only the time span that can affect flags up to end_year
-    # For a given Y, window is max(2010, Y-5)..(Y-1). Thus the latest round date used is 2024.
+    # Consider the time span up to end_year-1 since we EXCLUDE the current year from the window
+    # For a given Y, window is max(2010, Y-5)..Y-1. Thus the latest round date used is 2024.
     rounds = rounds[(rounds["round_date"].dt.year >= start_year) & (rounds["round_date"].dt.year <= end_year - 1)]
 
     # Add space flag by company_id
@@ -117,8 +256,8 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
     # Build the result matrix initialized to 0
     result = pd.DataFrame(0, index=investor_ids, columns=years, dtype=int)
 
-    # Compute 5-year lookback ratio for each investor
-    # For each investor, reindex years to full grid [2010..2025] so that shifting/rolling works consistently
+    # Compute 5-year lookback ratio (excluding current year) for each investor
+    # For each investor, reindex years to full grid [2010..2025] so rolling works consistently
     full_year_index = pd.Index(years, name="year")
 
     # Iterate by investor group to avoid extremely complex pivot logic
@@ -127,7 +266,7 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
         s = grp.droplevel(0)
         s = s.reindex(full_year_index, fill_value=0)
 
-        # Previous 8-year sums ending at Y-1
+        # 5-year sums excluding current year (Y-5..Y-1)
         prev5_total = s["total_amount"].shift(1).rolling(window=5, min_periods=1).sum()
         prev5_space = s["space_amount"].shift(1).rolling(window=5, min_periods=1).sum()
 
