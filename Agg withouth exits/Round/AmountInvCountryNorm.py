@@ -1,6 +1,5 @@
 import pandas as pd
 import Library as mylib
-import plotly.express as px
 import plotly.graph_objects as go
 
 # Optional dependency for US city -> state mapping
@@ -41,7 +40,7 @@ def _build_city_to_state_map(cities):
     return mapping, ambiguous, missing
 
 
-# Minimal population references (approx. 2020–2023). Values are total people.
+# Minimal population references (approx. 2022/2023). Values are total people.
 # Country populations are keyed by ISO3 codes.
 COUNTRY_POP = {
     "USA": 333287557, "GBR": 67508936, "DEU": 83294633, "FRA": 68042591,
@@ -84,7 +83,6 @@ def _amount_per_million(amount_musd: float, population: float) -> float:
 
 # Load rounds and export; filter only space firms
 df = mylib.openDB("rounds")
-# Use robust DB loader to avoid CWD-dependent path issues
 db_exp = mylib.openDB("export")[
     ["company_id", "company_all_tags", "company_city", "company_country"]
 ]
@@ -96,7 +94,7 @@ df = df[df["company_id"].isin(db_ids)]
 df = df[["company_id", "company_country", "round_amount_usd"]].copy()
 df["round_amount_usd"] = df["round_amount_usd"].apply(lambda x: x/1000000 if not pd.isna(x) else x)
 
-# ---------------- World map (exclude USA) ----------------
+# ---------------- World map normalized by population (exclude USA) ----------------
 df_world = df[df["company_country"].notna()].copy()
 df_world = df_world[df_world["company_country"] != "United States"]
 df_world_agg = (
@@ -112,22 +110,27 @@ df_world_agg.rename(
     inplace=True,
 )
 
-# Build like the US map: explicit Choropleth + overlayed labels
+# ISO3 codes and population join
 df_world_agg["iso3"] = df_world_agg["company_country"].apply(mylib.to_iso3)
+df_world_agg["population"] = df_world_agg["iso3"].map(COUNTRY_POP)
 df_world_agg = df_world_agg[df_world_agg["iso3"].notna()].copy()
-df_world_agg["Total amount invested (M)"] = df_world_agg["Total amount invested"]
+df_world_agg = df_world_agg[df_world_agg["population"].notna()].copy()
+df_world_agg["Amount per 1M people (MUSD)"] = df_world_agg.apply(
+    lambda r: _amount_per_million(r["Total amount invested"], r["population"]), axis=1
+)
+df_world_agg = df_world_agg[df_world_agg["Amount per 1M people (MUSD)"].notna()].copy()
 
 fig_world = go.Figure(
     data=go.Choropleth(
         locations=df_world_agg["iso3"],
-        z=df_world_agg["Total amount invested (M)"],
+        z=df_world_agg["Amount per 1M people (MUSD)"],
         locationmode="ISO-3",
         colorscale="Reds",
-        colorbar_title="Amount (M USD)",
+        colorbar_title="M USD per 1M people",
     )
 )
 fig_world.update_layout(
-    title_text="Total Amount Invested by Country (M USD)",
+    title_text="Amount Invested per 1M People by Country (M USD)",
     geo=dict(scope="world", projection_type="natural earth"),
     margin=dict(l=0, r=0, t=40, b=0),
 )
@@ -135,62 +138,30 @@ fig_world.add_trace(
     go.Scattergeo(
         locationmode="country names",
         locations=df_world_agg["company_country"],
-        text=df_world_agg["Total amount invested (M)"].round(2).astype(str),
+        text=df_world_agg["Amount per 1M people (MUSD)"].round(2).astype(str),
         mode="text",
         textfont=dict(color="black", size=9),
         showlegend=False,
     )
 )
+fig_world.write_html("Countries_map_amount_norm.html")
 fig_world.show()
-fig_world.write_html("Countries_map_amount.html")
 
-# -------- World map normalized by population (exclude USA) --------
-df_world_norm = df_world_agg.copy()
-df_world_norm["population"] = df_world_norm["iso3"].map(COUNTRY_POP)
-df_world_norm = df_world_norm[df_world_norm["population"].notna()].copy()
-df_world_norm["Amount per 1M people (MUSD)"] = df_world_norm.apply(
-    lambda r: _amount_per_million(r["Total amount invested (M)"], r["population"]), axis=1
-)
-df_world_norm = df_world_norm[df_world_norm["Amount per 1M people (MUSD)"].notna()].copy()
 
-fig_world_norm = go.Figure(
-    data=go.Choropleth(
-        locations=df_world_norm["iso3"],
-        z=df_world_norm["Amount per 1M people (MUSD)"],
-        locationmode="ISO-3",
-        colorscale="Reds",
-        colorbar_title="M USD per 1M people",
-    )
-)
-fig_world_norm.update_layout(
-    title_text="Amount Invested per 1M People by Country (M USD)",
-    geo=dict(scope="world", projection_type="natural earth"),
-    margin=dict(l=0, r=0, t=40, b=0),
-)
-fig_world_norm.add_trace(
-    go.Scattergeo(
-        locationmode="country names",
-        locations=df_world_norm["company_country"],
-        text=df_world_norm["Amount per 1M people (MUSD)"].round(2).astype(str),
-        mode="text",
-        textfont=dict(color="black", size=9),
-        showlegend=False,
-    )
-)
-fig_world_norm.show()
-fig_world_norm.write_html("Countries_map_amount_norm.html")
-
-# ---------------- USA state-level map ----------------
+# ---------------- USA state-level map normalized by population ----------------
 df_us = df[df["company_country"] == "United States"].copy()
 if not df_us.empty:
-    # Map company_id -> city, then resolve city -> state code
     df_us = df_us.merge(
         db_exp[["company_id", "company_city"]],
-        left_on="company_id",
-        right_on="company_id",
+        on="company_id",
         how="left",
     )
-    df_us["company_city"]=df_us["company_city"].replace({"New York City":"New York","Washington DC":"Washington", "St. Louis":"Saint Louis"})
+    # Normalize a few common variants so mapping is consistent with the total map
+    df_us["company_city"] = df_us["company_city"].replace({
+        "New York City": "New York",
+        "Washington DC": "Washington",
+        "St. Louis": "Saint Louis",
+    })
     cities = df_us["company_city"].dropna().astype(str).str.strip().drop_duplicates().tolist()
     try:
         city_state_map, _amb, _miss = _build_city_to_state_map(cities)
@@ -200,7 +171,6 @@ if not df_us.empty:
         if _miss:
             print("Unresolved cities (no match found):")
             print("  " + ", ".join(sorted(_miss)))
-        # Also report any city not present in the mapping for visibility
         unresolved = sorted(set(c for c in cities if c and c not in city_state_map))
         if unresolved:
             print(f"Cities without a unique mapping: {len(unresolved)}")
@@ -217,67 +187,36 @@ if not df_us.empty:
     if not df_us.empty:
         df_us_agg = df_us.groupby("StateCode")["round_amount_usd"].sum().reset_index()
         df_us_agg.rename(columns={"round_amount_usd": "Total amount invested (M)"}, inplace=True)
+        df_us_agg["population"] = df_us_agg["StateCode"].map(US_STATE_POP)
+        df_us_agg = df_us_agg[df_us_agg["population"].notna()].copy()
+        df_us_agg["Amount per 1M people (MUSD)"] = df_us_agg.apply(
+            lambda r: _amount_per_million(r["Total amount invested (M)"], r["population"]), axis=1
+        )
+        df_us_agg = df_us_agg[df_us_agg["Amount per 1M people (MUSD)"].notna()].copy()
 
         fig_usa = go.Figure(
             data=go.Choropleth(
                 locations=df_us_agg["StateCode"],
-                z=df_us_agg["Total amount invested (M)"],
-                locationmode="USA-states",
-                colorscale="Reds",
-                colorbar_title="Amount (M USD)",
-            )
-        )
-        fig_usa.update_layout(
-            title_text="Total Amount Invested by US State (M USD)",
-            geo_scope="usa",
-            margin=dict(l=0, r=0, t=40, b=0),
-        )
-        # Overlay numeric labels
-        fig_usa.add_trace(
-            go.Scattergeo(
-                locationmode="USA-states",
-                locations=df_us_agg["StateCode"],
-                text=df_us_agg["Total amount invested (M)"].round(2).astype(str),
-                mode="text",
-                textfont=dict(color="black", size=9),
-                showlegend=False,
-            )
-        )
-        fig_usa.show()
-        fig_usa.write_html("US_states_map_amount.html")
-
-        # -------- US state-level map normalized by population --------
-        df_us_norm = df_us_agg.copy()
-        df_us_norm["population"] = df_us_norm["StateCode"].map(US_STATE_POP)
-        df_us_norm = df_us_norm[df_us_norm["population"].notna()].copy()
-        df_us_norm["Amount per 1M people (MUSD)"] = df_us_norm.apply(
-            lambda r: _amount_per_million(r["Total amount invested (M)"], r["population"]), axis=1
-        )
-        df_us_norm = df_us_norm[df_us_norm["Amount per 1M people (MUSD)"].notna()].copy()
-
-        fig_usa_norm = go.Figure(
-            data=go.Choropleth(
-                locations=df_us_norm["StateCode"],
-                z=df_us_norm["Amount per 1M people (MUSD)"],
+                z=df_us_agg["Amount per 1M people (MUSD)"],
                 locationmode="USA-states",
                 colorscale="Reds",
                 colorbar_title="M USD per 1M people",
             )
         )
-        fig_usa_norm.update_layout(
+        fig_usa.update_layout(
             title_text="Amount Invested per 1M People by US State (M USD)",
             geo_scope="usa",
             margin=dict(l=0, r=0, t=40, b=0),
         )
-        fig_usa_norm.add_trace(
+        fig_usa.add_trace(
             go.Scattergeo(
                 locationmode="USA-states",
-                locations=df_us_norm["StateCode"],
-                text=df_us_norm["Amount per 1M people (MUSD)"].round(2).astype(str),
+                locations=df_us_agg["StateCode"],
+                text=df_us_agg["Amount per 1M people (MUSD)"].round(2).astype(str),
                 mode="text",
                 textfont=dict(color="black", size=9),
                 showlegend=False,
             )
         )
-        fig_usa_norm.show()
-        fig_usa_norm.write_html("US_states_map_amount_norm.html")
+        fig_usa.write_html("US_states_map_amount_norm.html")
+        fig_usa.show()
