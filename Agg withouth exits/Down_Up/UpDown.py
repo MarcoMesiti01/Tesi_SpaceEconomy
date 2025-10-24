@@ -5,22 +5,31 @@ import matplotlib.pyplot as plt
 
 df_round = pd.read_parquet("DB_Out/DB_rounds.parquet")
 df_updown = pd.read_parquet("DB_Out/DB_updown.parquet", columns=["id", "Upstream", "Downstream", "Tags_x", "Space"])
+
+#filter space ventures
 df_updown.rename(columns={"Tags_x":"company_all_tags"}, inplace=True)
 df_updown=df_updown[df_updown["Space"]==1]
 df_updown=df_updown[["Upstream", "Downstream"]]
+df_round_updown = pd.merge(df_round, df_updown, how="left", left_on="company_id", right_index=True)
 
-df_round_updown = pd.merge(df_round, df_updown, how="left", left_on="company_id", right_on="id")
+#filter european firms
+df_firms=pd.read_parquet("DB_Out/DB_firms.parquet", columns=["company_id","company_continent"])
+df_firms=df_firms[df_firms["company_continent"]=="Europe"]["company_id"]
+df_round_updown=df_round_updown[df_round_updown["company_id"].isin(df_firms)]
+
+
+
 df_round_updown["round_amount_usd"]=df_round_updown["round_amount_usd"].apply(lambda x: x/1000000000 if not pd.isna(x) else x)
 
 df_round_up = (
-    df_round_updown[df_round_updown["Upstream"] == True][["company_country", "round_amount_usd"]]
+    df_round_updown[df_round_updown["Upstream"] == 1][["company_country", "round_amount_usd"]]
     .groupby("company_country", as_index=False)["round_amount_usd"]
     .sum()
     .rename(columns={"round_amount_usd": "Amount upstream"})
 )
 
 df_round_down = (
-    df_round_updown[df_round_updown["Downstream"] == True][["company_country", "round_amount_usd"]]
+    df_round_updown[df_round_updown["Downstream"] == 1][["company_country", "round_amount_usd"]]
     .groupby("company_country", as_index=False)["round_amount_usd"]
     .sum()
     .rename(columns={"round_amount_usd": "Amount downstream"})
