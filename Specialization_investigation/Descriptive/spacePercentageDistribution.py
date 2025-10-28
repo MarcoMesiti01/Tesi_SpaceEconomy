@@ -36,6 +36,7 @@ if "investor_id" in rounds.columns and "round_date" in rounds.columns:
     rounds = rounds.dropna(subset=["investor_id", "round_date"]).copy()
     rounds["round_date"] = pd.to_datetime(rounds["round_date"], errors="coerce")
     rounds = rounds.dropna(subset=["round_date"])  # drop rows with invalid dates
+    rounds=mylib.space(rounds, "company_id", True)
 
     # Filter to same time window [threshold_year .. 2025]
     rounds = rounds[(rounds["round_date"].dt.year >= threshold_year) & (rounds["round_date"].dt.year <= 2025)]
@@ -67,8 +68,8 @@ else:
 fig, ax1 = plt.subplots(figsize=(9.5, 5.5))
 ax1.hist(df["space_percentage"], color="#1f77b4", edgecolor="white", bins=bins)
 ax1.set_xlabel("Percentage of space investment")
-ax1.set_ylabel("Number of firms")
-ax1.set_title("Percentage distribution with avg deals per bin")
+ax1.set_ylabel("Number of Venture Capital")
+ax1.set_title("Percentage distribution with avg deals per bin (space only)")
 ax1.grid(True, axis="y", alpha=0.2)
 
 ax2 = ax1.twinx()

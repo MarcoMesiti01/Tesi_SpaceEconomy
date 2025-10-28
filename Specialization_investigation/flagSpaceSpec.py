@@ -7,7 +7,9 @@ investor = mylib.openDB("investors")
 
 def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshold_percentage: float) -> pd.DataFrame:
     """
-    Adds a flag to the investor dataset
+    Adds a flag to the investor dataset. 
+    returns the information investor_flag_space and investor_flag_venture_capital
+    
     """
     # Validate inputs
     if threshold_percentage > 1 or threshold_percentage < 0:
@@ -99,6 +101,8 @@ def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_pe
     with a new column `space_percentage` in [0, 1], computed as:
         sum(space round_amount_usd) / sum(total round_amount_usd)
     over the inclusive window [threshold_year..2025]. Investors with no activity receive 0.
+
+    Filter the dataframe in order to exclude investor with less than 4 deals. 
     """
 
     if "investor_id" not in df_investor.columns:
@@ -112,6 +116,25 @@ def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_pe
         rounds_all_for_filter.dropna(subset=["investor_id"]).groupby("investor_id").size().rename("rounds_count")
     )
     eligible_ids = set(counts_all[counts_all >= 4].index)
+
+    # Venture capital filter (case-insensitive; matches 'venture capital' or 'venture_capital')
+    vc_pattern = r"\bventure[_ ]?capital\b"
+    if "investor_types" in df_investor.columns:
+        # Filter using types from the provided dataframe
+        types_series = df_investor["investor_types"].astype(str)
+        mask_vc = types_series.str.contains(vc_pattern, case=False, regex=True, na=False)
+        df_investor = df_investor[mask_vc]
+    else:
+        # Pull investor types from the investors DB and filter
+        inv_db = mylib.openDB("investors")
+        if "investor_types" not in inv_db.columns:
+            raise KeyError("investors DB must contain column 'investor_types'")
+        types_map = inv_db.set_index("investor_id")["investor_types"].astype(str)
+        types_series = df_investor["investor_id"].map(types_map).fillna("")
+        mask_vc = types_series.str.contains(vc_pattern, case=False, regex=True, na=False)
+        df_investor = df_investor[mask_vc]
+
+
     df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
 
     start_year = int(threshold_year)

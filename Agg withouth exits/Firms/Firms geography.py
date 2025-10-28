@@ -52,7 +52,7 @@ def build_city_to_state_map(cities):
         if len(states) == 1:
             mapping[key] = next(iter(states))
         else:
-            mapping[key]=next(iter(states))
+            ambiguous.add(key)
 
     return mapping, ambiguous, missing
 
@@ -66,7 +66,30 @@ if "company_id" in df_exp.columns:
     df_firms = df_exp[["company_id", "company_country", "company_city"]].drop_duplicates(subset=["company_id"])  # one row per firm
 else:
     df_firms = df_exp[["company_name", "company_country", "company_city"]].drop_duplicates(subset=["company_name"])  # fallback
-df_firms["company_city"]=df_firms["company_city"].replace({"New York City":"New York", "Washington DC":"Washington","St. Louis":"Saint Louis"})
+df_firms["company_city"]=df_firms["company_city"].replace({
+    "New York City":"New York",
+    "Washington DC":"Washington",
+    "St. Louis":"Saint Louis"
+})
+
+# Deterministic overrides for ambiguous US city names -> state code
+CITY_STATE_OVERRIDE = {
+    "Laconia": "NH","Lafayette": "LA","Livermore": "CA","Long Beach": "CA","Louisville": "KY",
+    "Manassas": "VA","Marietta": "GA","McLean": "VA","Mesa": "AZ","Miami": "FL","Midland": "TX",
+    "Monrovia": "CA","Mountain View": "CA","Newark": "NJ","North Bethesda": "MD","Orange": "CA",
+    "Orlando": "FL","Pasadena": "CA","Portland": "OR","Raleigh": "NC","Redmond": "WA","Reno": "NV",
+    "Rockville": "MD","Saint Louis": "MO","Saint Petersburg": "FL","San Diego": "CA","San Jose": "CA",
+    "San Mateo": "CA","Santa Clara": "CA","Santa Cruz": "CA","Santa Fe": "NM","Somerville": "MA",
+    "Stanford": "CA","Sullivan's Island": "SC","Sullivan\"s Island": "SC","Sunnyvale": "CA","Syracuse": "NY",
+    "Titusville": "FL","Toledo": "OH","Torrance": "CA","Troy": "MI","Tysons": "VA","Wakefield": "MA",
+    "Washington": "DC","Westfield": "NJ",
+    "Alexandria": "VA","Arlington": "VA","Atlanta": "GA","Austin": "TX","Bedminster Township": "NJ",
+    "Bellevue": "WA","Berkeley": "CA","Bishop": "CA","Boston": "MA","Boulder": "CO","Brownsville": "TX",
+    "Buffalo": "NY","Cambridge": "MA","Carlsbad": "CA","Chatsworth": "CA","Cincinnati": "OH","Dallas": "TX",
+    "Dearborn": "MI","Denver": "CO","Detroit": "MI","Durham": "NC","Fremont": "CA","Glendale": "CA",
+    "Golden": "CO","Grandview": "MO","Hawthorne": "CA","Herndon": "VA","Houston": "TX","Huntsville": "AL",
+    "Irvine": "CA","Ithaca": "NY","Jacksonville": "FL","Kansas City": "MO","Kirkland": "WA"
+}
 
 
 # ---------------- World map excluding USA ----------------
@@ -109,18 +132,23 @@ fig_world.show()
 df_usa = df_firms[df_firms["company_country"] == "United States"].copy()
 unique_cities = df_usa["company_city"].dropna().astype(str).str.strip().drop_duplicates().tolist()
 
+ambiguous_to_report = []
+missing_to_report = []
+unresolved_to_report = []
 try:
-    city_state_map, ambiguous_cities, missing_cities = build_city_to_state_map(unique_cities)
+    city_state_map, _amb, _miss = build_city_to_state_map(unique_cities)
+    override_keys = set(CITY_STATE_OVERRIDE.keys())
+    ambiguous_to_report = sorted(set(_amb) - override_keys)
+    missing_to_report = sorted(set(_miss) - override_keys)
+    unresolved_to_report = sorted(set(c for c in unique_cities if c and c not in city_state_map and c not in override_keys))
 except ImportError as e:
     print(str(e))
-    city_state_map, ambiguous_cities, missing_cities = {}, set(), set()
-
-if ambiguous_cities:
-    print(f"Ambiguous US cities (manual resolution advised): {sorted(ambiguous_cities)[:20]}... total={len(ambiguous_cities)}")
-if missing_cities:
-    print(f"US cities not found in GeoNames: {sorted(missing_cities)[:20]}... total={len(missing_cities)}")
+    unresolved_to_report = sorted(unique_cities)
+    city_state_map = {}
 
 df_usa["StateCode"] = df_usa["company_city"].map(city_state_map)
+# Apply deterministic overrides
+df_usa["StateCode"] = df_usa["company_city"].map(CITY_STATE_OVERRIDE).fillna(df_usa["StateCode"])
 df_usa = df_usa[df_usa["StateCode"].notna()]
 
 df_usa_counts = df_usa.groupby("StateCode").size().reset_index(name="Firms")
@@ -150,3 +178,9 @@ fig_usa.add_trace(
     )
 )
 fig_usa.show()
+
+# Consolidated reporting of remaining cities needing intervention
+needing_intervention = sorted(set(ambiguous_to_report) | set(missing_to_report) | set(unresolved_to_report))
+if needing_intervention:
+    print("US cities needing manual intervention (ambiguous or unresolved):")
+    print("  " + ", ".join(needing_intervention))

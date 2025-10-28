@@ -25,6 +25,7 @@ def continueSpec(x) -> int:
 df=pd.read_parquet("DB_Out/Fact/FactInvestorYearSpecialization.parquet")
 
 df_not=df.copy()
+print(df_not[2025].sum())
 df_not["flag"]=df.apply(continueSpec, axis=1)
 df_not_1=df_not[df_not["flag"]==1]["flag"].copy()
 print(df_not_1.sum())

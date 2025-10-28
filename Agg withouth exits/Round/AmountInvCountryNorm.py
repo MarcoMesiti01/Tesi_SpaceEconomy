@@ -125,7 +125,7 @@ fig_world = go.Figure(
         locations=df_world_agg["iso3"],
         z=df_world_agg["Amount per 1M people (MUSD)"],
         locationmode="ISO-3",
-        colorscale="Reds",
+        colorscale="Blues",
         colorbar_title="M USD per 1M people",
     )
 )
@@ -199,7 +199,7 @@ if not df_us.empty:
                 locations=df_us_agg["StateCode"],
                 z=df_us_agg["Amount per 1M people (MUSD)"],
                 locationmode="USA-states",
-                colorscale="Reds",
+                colorscale="Greens",
                 colorbar_title="M USD per 1M people",
             )
         )
