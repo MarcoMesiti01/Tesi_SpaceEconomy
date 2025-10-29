@@ -69,7 +69,7 @@ def build_comparison() -> pd.DataFrame:
 
     # Build bins over the ratio [0.2, 1.0]
     edges = [0.2, 0.4, 0.6, 0.8, 1.0000001]
-    labels = ["0.2–0.4", "0.4–0.6", "0.6–0.8", "0.8–1.0"]
+    labels = ["20%-40%", "40%-60%", "60%-80%", "80%-100%"]
     inv_spec["ratio_bin"] = pd.cut(inv_spec["space_percentage"].clip(lower=0.0, upper=1.0), bins=edges, labels=labels, right=False, include_lowest=True)
 
     # Load rounds and merge up/down labels

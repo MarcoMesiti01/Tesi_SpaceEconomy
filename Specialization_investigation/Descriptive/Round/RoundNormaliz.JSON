@@ -1,0 +1,29 @@
+{
+  "Seed": [
+    "seed",
+    "angel",
+    "convertible",
+    "support program",
+    "spinout"
+  ],
+  "Early Stage": [
+    "series a",
+    "early vc",
+    "media for equity"
+  ],
+  "Early Growth": [
+    "series b",
+    "series c",
+    "growth equity vc"
+  ],
+  "Later Stage": [
+    "series d",
+    "series e",
+    "series f",
+    "series g",
+    "series h",
+    "late vc",
+    "private placement vc",
+    "0"
+  ]
+}

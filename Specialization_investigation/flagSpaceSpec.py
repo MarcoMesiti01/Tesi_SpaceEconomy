@@ -44,6 +44,16 @@ def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshol
     eligible_ids = set(counts_all[counts_all >= 4].index)
     df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
 
+    """#investor having sustained a round in european companies
+    firm=pd.read_parquet("DB_Out/DB_firms.parquet")
+    rounds2=mylib.openDB("rounds")
+    firmEu=firm[firm["company_continent"]=="Europe"]["company_id"]
+    rounds2=mylib.space(rounds2, "company_id", False)
+    firmEu=firm[firm["company_continent"]=="Europe"]["company_id"] 
+    roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
+    ids=set(roundsLen)
+    eligible_ids=eligible_ids.intersection(ids)"""
+
     # Simplified specialization: consider window [threshold_year .. 2025] inclusive
     start_year = int(threshold_year)
     end_year = 2025
@@ -134,6 +144,15 @@ def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_pe
         mask_vc = types_series.str.contains(vc_pattern, case=False, regex=True, na=False)
         df_investor = df_investor[mask_vc]
 
+    #investor having sustained a round in european companies
+    firm=pd.read_parquet("DB_Out/DB_firms.parquet")
+    rounds2=mylib.openDB("rounds")
+    firmEu=firm[firm["company_continent"]=="Europe"]["company_id"]
+    rounds2=mylib.space(rounds2, "company_id", False)
+    firmEu=firm[firm["company_continent"]=="Europe"]["company_id"] 
+    roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
+    ids=set(roundsLen)
+    eligible_ids=eligible_ids.intersection(ids)
 
     df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
 
@@ -234,6 +253,17 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
         rounds_all_for_filter.dropna(subset=["investor_id"]).groupby("investor_id").size().rename("rounds_count")
     )
     eligible_ids = set(counts_all[counts_all >= 4].index)
+
+    #investor having sustained a round in european companies
+    firm=pd.read_parquet("DB_Out/DB_firms.parquet")
+    rounds2=mylib.openDB("rounds")
+    firmEu=firm[firm["company_continent"]=="Europe"]["company_id"]
+    rounds2=mylib.space(rounds2, "company_id", False)
+    firmEu=firm[firm["company_continent"]=="Europe"]["company_id"] 
+    roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
+    ids=set(roundsLen)
+    eligible_ids=eligible_ids.intersection(ids)
+    
     filtered_ids = [iid for iid in filtered_ids if iid in eligible_ids]
     investor_ids = pd.Index(filtered_ids, name="investor_id")
 
