@@ -3,6 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import Library as mylib
 
+# Increase default font sizes for readability
+plt.rcParams.update({
+    'font.size': 14,
+    'axes.titlesize': 18,
+    'axes.labelsize': 14,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'legend.fontsize': 12,
+})
+
 
 # Load core tables
 df_updown = mylib.openDB("updown")  # index must be company_id

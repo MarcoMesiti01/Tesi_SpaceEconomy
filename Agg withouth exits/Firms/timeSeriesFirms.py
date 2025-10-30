@@ -2,6 +2,16 @@ import pandas as pd
 import Library as mylib
 import matplotlib.pyplot as plt
 
+# Increase default font sizes for readability
+plt.rcParams.update({
+    'font.size': 14,
+    'axes.titlesize': 18,
+    'axes.labelsize': 14,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'legend.fontsize': 12,
+})
+
 #we want to define the number of startup founded in each year and represent it on a time series chart
 #years - number of firms launched
 df_firm=pd.read_parquet("DB_Out/DB_export.parquet")

@@ -4,6 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import Library as mylib
+import matplotlib.ticker as mticker
+
+# Increase default font sizes for readability
+plt.rcParams.update({
+    'font.size': 14,
+    'axes.titlesize': 18,
+    'axes.labelsize': 14,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'legend.fontsize': 12,
+})
 
 def getLastEmployee(x:str)->str:
     if not x or pd.isna(x):
@@ -65,9 +76,11 @@ out_dir = Path("Graphs"); out_dir.mkdir(parents=True, exist_ok=True)
 # Plot distribution for all companies
 if not emp_all.empty:
     plt.figure(figsize=(9, 5.5))
-    plt.hist(emp_all.values, bins=bins, color="#1f77b4", edgecolor="white", cumulative=True, density=True)
+    plt.hist(emp_all.values, bins=bins, color="#1f77b4", edgecolor="white", density=True)
     plt.xlabel("Number of employees")
-    plt.ylabel("Number of firms")
+    plt.ylabel("Firms (%)")
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
     plt.title("Firm size distribution – All companies")
     plt.grid(True, axis="y", alpha=0.2)
     plt.tight_layout()
@@ -81,7 +94,9 @@ if not emp_space.empty:
     plt.figure(figsize=(9, 5.5))
     plt.hist(emp_space.values, bins=bins, color="#d62728", edgecolor="white", density=True)
     plt.xlabel("Number of employees")
-    plt.ylabel("Number of firms")
+    plt.ylabel("Firms (%)")
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
     plt.title("Firm size distribution – Space companies")
     plt.grid(True, axis="y", alpha=0.2)
     plt.tight_layout()

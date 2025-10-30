@@ -115,6 +115,7 @@ fig_world.update_layout(
     coloraxis_colorbar_title="Firms",
     margin=dict(l=0, r=0, t=40, b=0),
 )
+fig_world.update_layout(font=dict(size=16))
 for _, row in df_world_counts.iterrows():
     fig_world.add_trace(
         go.Scattergeo(
@@ -167,13 +168,14 @@ fig_usa.update_layout(
     geo_scope="usa",
     margin=dict(l=0, r=0, t=40, b=0),
 )
+fig_usa.update_layout(font=dict(size=16))
 fig_usa.add_trace(
     go.Scattergeo(
         locationmode="USA-states",
         locations=df_usa_counts["StateCode"],
         text=df_usa_counts["Firms"].astype(int).astype(str),
         mode="text",
-        textfont=dict(color="black", size=9),
+        textfont=dict(color="black", size=12),
         showlegend=False,
     )
 )

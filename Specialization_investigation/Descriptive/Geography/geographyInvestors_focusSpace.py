@@ -16,6 +16,7 @@ except ImportError:
 df_inv = mylib.openDB("investors")
 df_inv=spaceSpecialization(df_inv, 2020, 0.2)
 df_inv=df_inv[(df_inv["investor_flag_space"]==1) & (df_inv["investor_flag_venture_capital"]==1)].copy()  # columns include: ID, Investor country, Investor city
+print(len(df_inv))
 df_exp = mylib.openDB("export")
 
 # Keep only space-related companies and the corresponding investor IDs

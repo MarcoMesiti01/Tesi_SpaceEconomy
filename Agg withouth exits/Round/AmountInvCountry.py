@@ -215,13 +215,14 @@ fig_world.update_layout(
     geo=dict(scope="world", projection_type="natural earth"),
     margin=dict(l=0, r=0, t=40, b=0),
 )
+fig_world.update_layout(font=dict(size=16))
 fig_world.add_trace(
     go.Scattergeo(
         locationmode="country names",
         locations=df_world_agg["company_country"],
         text=df_world_agg["Total amount invested (M)"].round(2).astype(str),
         mode="text",
-        textfont=dict(color="black", size=9),
+        textfont=dict(color="black", size=12),
         showlegend=False,
     )
 )
@@ -251,13 +252,14 @@ fig_world_norm.update_layout(
     geo=dict(scope="world", projection_type="natural earth"),
     margin=dict(l=0, r=0, t=40, b=0),
 )
+fig_world_norm.update_layout(font=dict(size=16))
 fig_world_norm.add_trace(
     go.Scattergeo(
         locationmode="country names",
         locations=df_world_norm["company_country"],
         text=df_world_norm["Amount per 1M people (MUSD)"].round(2).astype(str),
         mode="text",
-        textfont=dict(color="black", size=9),
+        textfont=dict(color="black", size=12),
         showlegend=False,
     )
 )
@@ -316,6 +318,7 @@ if not df_us.empty:
             geo_scope="usa",
             margin=dict(l=0, r=0, t=40, b=0),
         )
+        fig_usa.update_layout(font=dict(size=16))
         # Overlay numeric labels
         fig_usa.add_trace(
             go.Scattergeo(
@@ -323,7 +326,7 @@ if not df_us.empty:
                 locations=df_us_agg["StateCode"],
                 text=df_us_agg["Total amount invested (M)"].round(2).astype(str),
                 mode="text",
-                textfont=dict(color="black", size=9),
+                textfont=dict(color="black", size=12),
                 showlegend=False,
             )
         )
@@ -353,13 +356,14 @@ if not df_us.empty:
             geo_scope="usa",
             margin=dict(l=0, r=0, t=40, b=0),
         )
+        fig_usa_norm.update_layout(font=dict(size=16))
         fig_usa_norm.add_trace(
             go.Scattergeo(
                 locationmode="USA-states",
                 locations=df_us_norm["StateCode"],
                 text=df_us_norm["Amount per 1M people (MUSD)"].round(2).astype(str),
                 mode="text",
-                textfont=dict(color="black", size=9),
+                textfont=dict(color="black", size=12),
                 showlegend=False,
             )
         )

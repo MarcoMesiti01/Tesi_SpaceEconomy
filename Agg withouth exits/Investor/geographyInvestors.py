@@ -59,6 +59,7 @@ fig_world.update_layout(
     coloraxis_colorbar_title="Investors",
     margin=dict(l=0, r=0, t=40, b=0),
 )
+fig_world.update_layout(font=dict(size=16))
 for _, row in df_world.iterrows():
     fig_world.add_trace(
         go.Scattergeo(
@@ -161,6 +162,7 @@ fig_usa.update_layout(
     geo_scope="usa",
     margin=dict(l=0, r=0, t=40, b=0),
 )
+fig_usa.update_layout(font=dict(size=16))
 
 # Show both figures
 fig_usa.show()

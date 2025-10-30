@@ -42,9 +42,8 @@ def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshol
         rounds_all_for_filter.dropna(subset=["investor_id"]).groupby("investor_id").size().rename("rounds_count")
     )
     eligible_ids = set(counts_all[counts_all >= 4].index)
-    df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
 
-    """#investor having sustained a round in european companies
+    #investor having sustained a round in european companies
     firm=pd.read_parquet("DB_Out/DB_firms.parquet")
     rounds2=mylib.openDB("rounds")
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"]
@@ -52,7 +51,8 @@ def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshol
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"] 
     roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
     ids=set(roundsLen)
-    eligible_ids=eligible_ids.intersection(ids)"""
+    eligible_ids=eligible_ids.intersection(ids)
+    df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
 
     # Simplified specialization: consider window [threshold_year .. 2025] inclusive
     start_year = int(threshold_year)
@@ -70,7 +70,7 @@ def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshol
     rounds = rounds.dropna(subset=["investor_id", "round_date"])  # cannot use rows missing investor or date
 
     # Restrict to [start_year .. 2025]
-    rounds = rounds[(rounds["round_date"].dt.year >= start_year) & (rounds["round_date"].dt.year <= end_year)]
+    rounds = rounds[(rounds["round_date"].dt.year >= start_year) & (rounds["round_date"].dt.year < end_year)]
 
     # Add space flag and compute space amounts
     rounds = mylib.space(rounds, column="company_id", filter=False)
@@ -171,7 +171,7 @@ def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_pe
     rounds = rounds.dropna(subset=["investor_id", "round_date"])  # ensure usable rows
 
     # Restrict to [start_year .. 2025]
-    rounds = rounds[(rounds["round_date"].dt.year >= start_year) & (rounds["round_date"].dt.year <= end_year)]
+    rounds = rounds[(rounds["round_date"].dt.year >= start_year) & (rounds["round_date"].dt.year < end_year)]
 
     # Add space flag and compute space amounts
     rounds = mylib.space(rounds, column="company_id", filter=False)
@@ -263,7 +263,7 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
     roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
     ids=set(roundsLen)
     eligible_ids=eligible_ids.intersection(ids)
-    
+
     filtered_ids = [iid for iid in filtered_ids if iid in eligible_ids]
     investor_ids = pd.Index(filtered_ids, name="investor_id")
 

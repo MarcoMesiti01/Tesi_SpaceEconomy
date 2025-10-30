@@ -97,6 +97,7 @@ def main() -> None:
         },
     )
     fig.update_layout(barmode="stack", xaxis_title="investor_types", yaxis_title="Amount invested (EUR)")
+    fig.update_layout(font=dict(size=16))
     fig.show()
 
     pivot.drop(columns="Total", inplace=True)

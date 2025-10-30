@@ -4,6 +4,16 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import Library as mylib
 
+# Increase default font sizes for readability
+plt.rcParams.update({
+    'font.size': 14,
+    'axes.titlesize': 18,
+    'axes.labelsize': 14,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'legend.fontsize': 12,
+})
+
 
 def get_last_employee(x: str) -> str:
     if not x or pd.isna(x):
@@ -83,4 +93,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

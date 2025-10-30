@@ -86,4 +86,5 @@ fig = px.bar(
     },
 )
 fig.update_layout(barmode="stack", xaxis_title="investor_types", yaxis_title="Amount invested (B USD)")
+fig.update_layout(font=dict(size=16))
 fig.show()

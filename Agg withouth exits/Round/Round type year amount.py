@@ -2,6 +2,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import Library as mylib
 
+# Increase default font sizes for readability
+plt.rcParams.update({
+    'font.size': 14,
+    'axes.titlesize': 18,
+    'axes.labelsize': 14,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'legend.fontsize': 12,
+})
+
 ROUNDS_PATH = "DB_Out/DB_rounds.parquet"
 EXPORT_PATH = "DB_Out/DB_export.parquet"
 
