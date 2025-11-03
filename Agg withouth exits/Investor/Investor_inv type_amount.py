@@ -3,7 +3,7 @@ import Library as mylib
 
 db_inv=pd.read_parquet("DB_Out/DB_investors.parquet")
 db_round=pd.read_parquet("DB_Out/DB_rounds.parquet")
-db_round=mylib.space(db_round, "company_id",True)
+#db_round=mylib.space(db_round, "company_id",True)
 db_round=mylib.filterExits(db_round)
 df_round=db_round[["investor_id","investor_name", "round_amount_usd"]].groupby(by=["investor_id", "investor_name"]).sum()
 df_round.reset_index(inplace=True)

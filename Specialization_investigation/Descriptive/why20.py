@@ -16,7 +16,7 @@ ids=set(roundsLen)
 inv=inv[inv["investor_id"].isin(roundsLen)]
 
 #troviamo la distribuzione degli investitori definiti sinora (la funzione filtra per venture capital e almeno 4 deals)
-inv=flag.spacePercentage(inv, 2020, 0)
+inv=flag.spacePercentage(inv, 2015, 0)
 inv=inv[["investor_id","space_percentage"]]
 print(len(inv))
 print(inv["space_percentage"].quantile([0.5, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]))

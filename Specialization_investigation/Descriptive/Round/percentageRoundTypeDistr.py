@@ -42,10 +42,96 @@ def _standardize_round_labels(df: pd.DataFrame, normalizer: dict) -> pd.Series:
 
     return df[source_col].apply(map_label)
 
+COLOR_MAP = {
+    "Seed": "#1f77b4",
+    "Early Stage": "#ff7f0e",
+    "Early Growth": "#2ca02c",
+    "Later Stage": "#d62728",
+}
+
+
+def _compute_percentage_table(
+    df: pd.DataFrame, labels: list[str], std_order: list[str]
+) -> pd.DataFrame:
+    """Return row-wise percentage table of round amounts by specialization class."""
+    if df.empty:
+        return pd.DataFrame(
+            0.0, index=pd.Index(labels, name="class"), columns=std_order
+        )
+
+    working = df[df["class"].notna() & df["std_round"].isin(std_order)]
+    if working.empty:
+        return pd.DataFrame(
+            0.0, index=pd.Index(labels, name="class"), columns=std_order
+        )
+
+    agg = (
+        working.groupby(["class", "std_round"], as_index=False)["round_amount_usd"].sum()
+    )
+    pivot = (
+        agg.pivot(index="class", columns="std_round", values="round_amount_usd")
+        .fillna(0.0)
+        .reindex(index=pd.Index(labels, name="class"), fill_value=0.0)
+        .reindex(columns=std_order, fill_value=0.0)
+    )
+
+    row_totals = pivot.sum(axis=1).replace(0, pd.NA)
+    pct = pivot.div(row_totals, axis=0).fillna(0.0) * 100.0
+    return pct
+
+
+def _annotate_stacked_bars(ax, pct: pd.DataFrame, std_order: list[str]) -> None:
+    """Annotate stacked bars with percentages >= 5%."""
+    for idx, x_label in enumerate(pct.index.astype(str)):
+        cum = 0.0
+        for col in std_order:
+            val = float(pct.iloc[idx][col])
+            if val >= 5:
+                ax.text(
+                    x_label,
+                    cum + val / 2,
+                    f"{val:.0f}%",
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    color="white",
+                )
+            cum += val
+
+
+def _plot_stacked_percentage(
+    pct: pd.DataFrame, std_order: list[str], title: str
+) -> None:
+    """Plot a stacked percentage bar chart given the percentage table."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bottom = pd.Series(0.0, index=pct.index, dtype=float)
+    x_labels = pct.index.astype(str)
+
+    for col in std_order:
+        heights = pct[col].fillna(0.0).values
+        ax.bar(
+            x_labels,
+            heights,
+            bottom=bottom.values,
+            label=col,
+            color=COLOR_MAP.get(col, None),
+        )
+        bottom += pct[col].fillna(0.0)
+
+    ax.set_xlabel("Investor specialization class (upper bound)")
+    ax.set_ylabel("Share of round type (%)")
+    ax.set_title(title)
+    ax.legend(title="Round type", bbox_to_anchor=(1.02, 1), loc="upper left")
+    ax.set_ylim(0, 100)
+    ax.set_yticks(range(0, 101, 10))
+
+    _annotate_stacked_bars(ax, pct, std_order)
+
+    fig.tight_layout()
 
 def main() -> None:
     # Parameters
-    threshold_year = 2020  # start year for specialization window [threshold_year..2025]
+    threshold_year = 2015  # start year for specialization window [threshold_year..2025]
     thresh_unused = 0.0    # not used by spacePercentage, kept for signature symmetry
 
     # Load data
@@ -74,6 +160,11 @@ def main() -> None:
     rounds = rounds.dropna(subset=["investor_id"]).copy()
     rounds = rounds.merge(inv_pct, on="investor_id", how="left")
 
+    # Tag rounds related to space companies
+    if "company_id" not in rounds.columns:
+        raise KeyError("rounds DB must contain column 'company_id' for space mapping")
+    rounds = mylib.space(rounds, column="company_id", filter=False)
+
     # Bin investors into 5 classes by specialization percentage
     edges = [0, 0.2, 0.4, 0.6, 0.8, 1.0000001]
     labels = ["0-20%", "20%-40%", "40%-60%", "60%-80%", "80%-100%"]
@@ -97,51 +188,20 @@ def main() -> None:
     if rounds.empty:
         print("No data available after mapping and filtering. Nothing to plot.")
         return
+    pct_all = _compute_percentage_table(rounds, labels, std_order)
+    _plot_stacked_percentage(pct_all, std_order, "Round type distribution by specialization class (amount share)")
 
-    # Aggregate USD amount by class and standardized round type
-    agg = (
-        rounds.groupby(["class", "std_round"], as_index=False)["round_amount_usd"].sum()
-    )
+    space_rounds = rounds[rounds["Space"].fillna(0) == 1].copy()
+    if space_rounds.empty:
+        print("No space-related rounds available for space-only plot.")
+    else:
+        pct_space = _compute_percentage_table(space_rounds, labels, std_order)
+        _plot_stacked_percentage(
+            pct_space,
+            std_order,
+            "Round type distribution by specialization class (space rounds only)",
+        )
 
-    # Pivot to have classes as rows, std categories as columns
-    pivot = agg.pivot(index="class", columns="std_round", values="round_amount_usd").fillna(0.0)
-
-    # Ensure all classes and categories are present and ordered
-    pivot = pivot.reindex(index=pd.Index(labels, name="class"), columns=std_order, fill_value=0.0)
-
-    # Convert to row-wise percentages
-    row_totals = pivot.sum(axis=1).replace(0, pd.NA)
-    pct = pivot.div(row_totals, axis=0).fillna(0.0) * 100.0
-
-    # Plot stacked bars
-    fig, ax = plt.subplots(figsize=(10, 6))
-    bottom = pd.Series(0.0, index=pct.index)
-    colors = {
-        "Seed": "#1f77b4",
-        "Early Stage": "#ff7f0e",
-        "Early Growth": "#2ca02c",
-        "Later Stage": "#d62728",
-    }
-    for col in std_order:
-        ax.bar(pct.index.astype(str), pct[col].values, bottom=bottom.values, label=col, color=colors.get(col))
-        bottom += pct[col]
-
-    ax.set_xlabel("Investor specialization class (upper bound)")
-    ax.set_ylabel("Share of round type (%)")
-    ax.set_title("Round type distribution by specialization class (amount share)")
-    ax.legend(title="Round type", bbox_to_anchor=(1.02, 1), loc="upper left")
-    ax.set_ylim(0, 100)
-
-    # Annotate stacked bars with percentages >= 5%
-    for xi, x in enumerate(pct.index.astype(str)):
-        cum = 0.0
-        for col in std_order:
-            val = pct.loc[pct.index[xi], col]
-            if val >= 5:
-                ax.text(x, cum + val / 2, f"{val:.0f}%", ha="center", va="center", fontsize=8, color="white")
-            cum += val
-
-    plt.tight_layout()
     plt.show()
 
 

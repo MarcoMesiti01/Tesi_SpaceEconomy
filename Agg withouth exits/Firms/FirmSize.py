@@ -16,15 +16,18 @@ plt.rcParams.update({
     'legend.fontsize': 12,
 })
 
-def getLastEmployee(x:str)->str:
-    if not x or pd.isna(x):
+def getLastEmployee(x: str) -> str:
+    # Return only the last year's value (2024), not the last available.
+    # If the 2024 value is missing or 'n/a', return "0".
+    if pd.isna(x) or not x:
         return "0"
-    else:
-        list=x.split(",")
-        for i in reversed(list):
-            if i!="n/a":
-                return i
+    parts = str(x).split(",")
+    if not parts:
         return "0"
+    last_val = parts[-1].strip()
+    if last_val.lower() in {"n/a", "na", ""}:
+        return "0"
+    return last_val
 
 def normalize(x : float ) -> float:
     for a in range(40000):
@@ -46,12 +49,12 @@ df["employee_number"]=pd.to_numeric(df["employee_number"], errors="coerce")
 
 # Keep a Space-only view (Space==1)
 df_space = mylib.space(df, "company_id", True)
-df_print=df[(df["employee_number"]>0) & (df["employee_number"]<df["employee_number"].quantile(0.8))]
+df_print=df[(df["employee_number"]<df["employee_number"].quantile(0.8))]
 print(df_print["employee_number"].mean())
-df_print=df_space[(df_space["employee_number"]>0) & (df_space["employee_number"]<df_space["employee_number"].quantile(0.8))]
+df_print=df_space[ (df_space["employee_number"]<df_space["employee_number"].quantile(0.8))]
 print(df_print["employee_number"].mean())
-print(df["employee_number"].quantile([0.25, 0.5, 0.75, 0.9, 0.99, 0.999]))
-print(df_space["employee_number"].quantile([0.25, 0.5, 0.75, 0.9, 0.99, 0.999]))
+print(df["employee_number"].quantile([0.25, 0.5, 0.75, 0.9, 0.99, 0.999, 1]))
+print(df_space["employee_number"].quantile([0.25, 0.5, 0.75, 0.9, 0.99, 0.999, 1]))
 #modify here and make the graph for this distribution
 
 

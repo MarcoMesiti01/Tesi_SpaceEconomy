@@ -58,10 +58,10 @@ def build_comparison() -> pd.DataFrame:
     0.6–0.8, 0.8–1.0 (inclusive of 1.0) for specialized investors.
     Returns a dataframe with columns [Group, Upstream, Downstream] in USD.
     """
-    # Load investors and compute specialization flags and ratios (window starting 2020)
+    # Load investors and compute specialization flags and ratios (window starting 2015)
     investors = mylib.openDB("investors")
-    investors = spaceSpecialization(investors, 2020, 0.2)
-    investors = spacePercentage(investors, 2020, 0.2)
+    investors = spaceSpecialization(investors, 2015, 0.2)
+    investors = spacePercentage(investors, 2015, 0.2)
 
     # Split investors: non‑specialized vs specialized
     inv_normal = investors[investors["investor_flag_space"] == 0].copy()

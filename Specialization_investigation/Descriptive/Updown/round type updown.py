@@ -9,7 +9,7 @@ from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import spaceSp
 df_rounds = mylib.openDB("rounds")
 df_updown = mylib.openDB("updown")
 dfinv=mylib.openDB("investors")
-dfinv=spaceSpecialization(dfinv, 2020, 0.2)
+dfinv=spaceSpecialization(dfinv, 2015, 0.2)
 dfinv=dfinv[dfinv["investor_flag_space"]==1]["investor_id"]
 df_rounds=df_rounds[df_rounds["investor_id"].isin(dfinv)]
 

@@ -243,13 +243,13 @@ def to_iso3(name:str)->str:
         return None
 
 def makeMap(df: pd.DataFrame, column: str) -> px.choropleth:
-    df["Country"]=df["company_country"].apply(to_iso3)
-    listColumns=["Country", "company_country", column]
+    df[countrColumn]=df["company_country"].apply(to_iso3)
+    listColumns=[countrColumn, "company_country", column]
     df=df[listColumns]
-    missing=df[df["Country"].isna()]
+    missing=df[df[countrColumn].isna()]
     if not missing.empty:
         print(missing)
-    fig=px.choropleth(df, locations="Country", color=column, hover_name="company_country", color_continuous_scale="Reds", projection="natural earth")
+    fig=px.choropleth(df, locations=countrColumn, color=column, hover_name="company_country", color_continuous_scale="Reds", projection="natural earth")
     fig.update_layout(title=column, coloraxis_colorbar_title="Value", margin=dict(l=0, r=0, t=40, b=0),)
     for i, row in df.iterrows():
         fig.add_trace(go.Scattergeo(locationmode="country names", locations=[row["company_country"]], text=[round(row[column])], mode="text", showlegend=False ))
@@ -309,16 +309,16 @@ def polish_loc(df: pd.DataFrame) -> pd.DataFrame:
     """
     Takes in a dataframe with columns Investor and country 
     Returns a dataframe that keeps only the information of the country appearing the most linked to the investor
-    Returns df -> columns=["Investor", "country"]
+    Returns df -> columns=["Investor", countrColumn]
     """
     rows=list()
     for investor, group in df.groupby("Investor"):
         occurences=dict()
         for index, row in group.iterrows():
             try:
-                occurences[row["Country"]]+=1
+                occurences[row[countrColumn]]+=1
             except KeyError:
-                occurences[row["Country"]]=1
+                occurences[row[countrColumn]]=1
         maxValue=0
         country=str()
         for key, values in occurences.items():
@@ -326,7 +326,7 @@ def polish_loc(df: pd.DataFrame) -> pd.DataFrame:
                 maxValue=values
                 country=key
         rows.append([investor, country])
-    retDf=pd.DataFrame(rows, columns=["Investor", "Country"])
+    retDf=pd.DataFrame(rows, columns=["Investor", countrColumn])
     return retDf
 
 def valuations(df: pd.DataFrame):
@@ -417,13 +417,35 @@ def filterExits(df: pd.DataFrame) -> pd.DataFrame:
         df=df[df["Round type"]!="NULL"]
         return df
 
-def toEU(df : pd.DataFrame) -> pd.DataFrame:
+def toEU(df : pd.DataFrame, countrColumn: str) -> pd.DataFrame:
     """
-    Accepts a dataframe with the column "Country" and rename the EU countries as "EU"
+    Accepts a dataframe with the column countrColumn and rename the EU countries as "EU"
     Returns a dataframe 
     """
     EU=["Italy", "Germany", "France", "Spain", "Portugal", "Greece", "Netherlands", "Belgium", "Luxemburg", "Finland", "Sweden", "Austria", "Denmark", "Bulgaria", "Romania", "Estonia", "Latvia", "Poland", "Lithuania", "Ireland", "Malta", "Croatia", "Czech republic", "Hungary", "Cyprus", "Liechtenstein", "Slovenia", "Slovakia"]
-    df["Country"]=df["Country"].mask(df["Country"].isin(EU), other="EU")
+    df[countrColumn]=df[countrColumn].mask(df[countrColumn].isin(EU), other="EU")
+    return df
+
+def toEurope(df: pd.DataFrame, countrColumn: str):
+    """
+    Accepts a dataframe with the column `countrColumn` and renames European countries to "Europe".
+    Matching is case-insensitive and trims whitespace. Handles common spelling variants.
+    Returns the modified dataframe.
+    """
+    europe_set = {
+        "italy", "germany", "france", "spain", "portugal", "greece",
+        "netherlands", "belgium", "luxembourg", "luxemburg", "finland",
+        "sweden", "austria", "denmark", "bulgaria", "romania", "estonia",
+        "latvia", "poland", "lithuania", "ireland", "malta", "croatia",
+        "czech republic", "czechia", "hungary", "cyprus", "liechtenstein",
+        "slovenia", "slovakia", "united kingdom", "uk", "norway", "switzerland",
+        "iceland",
+    }
+
+    series = df[countrColumn].astype(str)
+    norm = series.str.strip().str.casefold()
+    mask = norm.isin(europe_set)
+    df.loc[mask, countrColumn] = "Europe"
     return df
 
 def space(df: pd.DataFrame, column : str, filter : bool) -> pd.DataFrame:
