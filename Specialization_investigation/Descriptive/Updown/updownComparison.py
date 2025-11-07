@@ -11,7 +11,7 @@ def _prepare_updown_merged(rounds: pd.DataFrame) -> pd.DataFrame:
 
     Returns a DataFrame with columns including:
       - company_id, investor_id, round_amount_usd
-      - Upstream, Downstream (binary flags)
+      - upstream, downstream (binary flags)
     """
     updown = mylib.openDB("updown")
     needed_round_cols = ["company_id", "investor_id", "round_amount_usd"]
@@ -19,20 +19,28 @@ def _prepare_updown_merged(rounds: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise KeyError(f"Missing columns in rounds table: {missing}")
 
-    needed_ud_cols = ["Upstream", "Downstream", "Space"]
+    needed_ud_cols = ["company_id", "upstream", "downstream", "space"]
     missing_ud = [c for c in needed_ud_cols if c not in updown.columns]
     if missing_ud:
         raise KeyError(f"Missing columns in updown table: {missing_ud}")
 
     # Restrict to space companies in classification and keep only U/D flags
-    updown = updown[updown["Space"] == 1][["Upstream", "Downstream"]]
+    updown = (
+        updown[updown["space"] == 1]
+        .loc[:, ["company_id", "upstream", "downstream"]]
+        .dropna(subset=["company_id"])
+        .copy()
+    )
+    updown[["upstream", "downstream"]] = (
+        updown[["upstream", "downstream"]].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
+    )
 
-    # Merge on company_id (updown index is company_id)
-    df = pd.merge(rounds[needed_round_cols], updown, how="inner", left_on="company_id", right_index=True)
+    # Merge on company_id
+    df = pd.merge(rounds[needed_round_cols], updown, how="inner", on="company_id")
 
     # Keep rows where at least one of the flags is set
-    up = (df["Upstream"].fillna(0) == 1)
-    down = (df["Downstream"].fillna(0) == 1)
+    up = (df["upstream"].fillna(0) == 1)
+    down = (df["downstream"].fillna(0) == 1)
     df = df[up | down]
 
     # Normalize amount
@@ -43,8 +51,8 @@ def _prepare_updown_merged(rounds: pd.DataFrame) -> pd.DataFrame:
 
 def _sum_up_down(df: pd.DataFrame) -> tuple[float, float]:
     """Return total amounts (USD) for upstream and downstream in the provided merged DF."""
-    up_mask = (df["Upstream"].fillna(0) == 1)
-    down_mask = (df["Downstream"].fillna(0) == 1)
+    up_mask = (df["upstream"].fillna(0) == 1)
+    down_mask = (df["downstream"].fillna(0) == 1)
 
     up_sum = float(df.loc[up_mask, "round_amount_usd"].sum())
     down_sum = float(df.loc[down_mask, "round_amount_usd"].sum())
@@ -56,7 +64,7 @@ def build_comparison() -> pd.DataFrame:
 
     Bins: Normal investors (non-specialized, flag = 0), then 0.2–0.4, 0.4–0.6,
     0.6–0.8, 0.8–1.0 (inclusive of 1.0) for specialized investors.
-    Returns a dataframe with columns [Group, Upstream, Downstream] in USD.
+    Returns a dataframe with columns [Group, upstream, downstream] in USD.
     """
     # Load investors and compute specialization flags and ratios (window starting 2015)
     investors = mylib.openDB("investors")
@@ -91,7 +99,7 @@ def build_comparison() -> pd.DataFrame:
         up_sum, down_sum = _sum_up_down(df_bin)
         results.append([label, up_sum, down_sum])
 
-    out = pd.DataFrame(results, columns=["Group", "Upstream", "Downstream"])    
+    out = pd.DataFrame(results, columns=["Group", "upstream", "downstream"])    
     return out
 
 
@@ -102,27 +110,27 @@ def plot_comparison(df: pd.DataFrame) -> None:
 
     # Compute shares per group and plot 100% stacked bars
     plot_df = df.copy()
-    plot_df["Total"] = plot_df["Upstream"].fillna(0) + plot_df["Downstream"].fillna(0)
+    plot_df["Total"] = plot_df["upstream"].fillna(0) + plot_df["downstream"].fillna(0)
     eps = 1e-12
-    plot_df["Upstream_share"] = np.where(plot_df["Total"] > eps, plot_df["Upstream"] / plot_df["Total"], 0.0)
-    plot_df["Downstream_share"] = np.where(plot_df["Total"] > eps, plot_df["Downstream"] / plot_df["Total"], 0.0)
+    plot_df["upstream_share"] = np.where(plot_df["Total"] > eps, plot_df["upstream"] / plot_df["Total"], 0.0)
+    plot_df["downstream_share"] = np.where(plot_df["Total"] > eps, plot_df["downstream"] / plot_df["Total"], 0.0)
 
     x = np.arange(len(plot_df))
     width = 0.6
 
     fig, ax = plt.subplots(figsize=(12, 7))
-    ax.bar(x, plot_df["Upstream_share"], width, label="Upstream", color="#4C78A8")
-    ax.bar(x, plot_df["Downstream_share"], width, bottom=plot_df["Upstream_share"], label="Downstream", color="#F58518")
+    ax.bar(x, plot_df["upstream_share"], width, label="upstream", color="#4C78A8")
+    ax.bar(x, plot_df["downstream_share"], width, bottom=plot_df["upstream_share"], label="downstream", color="#F58518")
 
     ax.set_xticks(x)
     ax.set_xticklabels(plot_df["Group"], rotation=30, ha="right")
     ax.set_ylabel("Share of investment")
     ax.yaxis.set_major_formatter(PercentFormatter(1.0))
-    ax.set_title("Upstream vs Downstream share by specialization ratio (100% stacked)")
+    ax.set_title("upstream vs downstream share by specialization ratio (100% stacked)")
     ax.legend()
 
     # Annotate segments with percentages
-    for idx, (u, d) in enumerate(zip(plot_df["Upstream_share"], plot_df["Downstream_share"])):
+    for idx, (u, d) in enumerate(zip(plot_df["upstream_share"], plot_df["downstream_share"])):
         if u > 0.03:
             ax.text(idx, u / 2, f"{u*100:.0f}%", ha="center", va="center", color="white", fontsize=9)
         if d > 0.03:

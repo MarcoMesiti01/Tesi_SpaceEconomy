@@ -426,36 +426,16 @@ def toEU(df : pd.DataFrame, countrColumn: str) -> pd.DataFrame:
     df[countrColumn]=df[countrColumn].mask(df[countrColumn].isin(EU), other="EU")
     return df
 
-def toEurope(df: pd.DataFrame, countrColumn: str):
-    """
-    Accepts a dataframe with the column `countrColumn` and renames European countries to "Europe".
-    Matching is case-insensitive and trims whitespace. Handles common spelling variants.
-    Returns the modified dataframe.
-    """
-    europe_set = {
-        "italy", "germany", "france", "spain", "portugal", "greece",
-        "netherlands", "belgium", "luxembourg", "luxemburg", "finland",
-        "sweden", "austria", "denmark", "bulgaria", "romania", "estonia",
-        "latvia", "poland", "lithuania", "ireland", "malta", "croatia",
-        "czech republic", "czechia", "hungary", "cyprus", "liechtenstein",
-        "slovenia", "slovakia", "united kingdom", "uk", "norway", "switzerland",
-        "iceland",
-    }
 
-    series = df[countrColumn].astype(str)
-    norm = series.str.strip().str.casefold()
-    mask = norm.isin(europe_set)
-    df.loc[mask, countrColumn] = "Europe"
-    return df
 
 def space(df: pd.DataFrame, column : str, filter : bool) -> pd.DataFrame:
     """Accepts a dataframe with the firm Id in the 'column', adds the flag space based on the Table, returns the dataframe with the flag if filter is 0, returns the dataframe filtered if filter is 1"""
     df_space=openDB("updown")
-    df_space=df_space["Space"]
+    df_space=df_space["space"]
     df_fin=pd.merge(left=df, right=df_space, left_on=column, right_index=True, how="left")
-    df_fin.fillna({"Space":0}, inplace=True)
+    df_fin.fillna({"space":0}, inplace=True)
     if filter:
-        return df_fin[df_fin["Space"]==1]
+        return df_fin[df_fin["space"]==1]
     else:
         return df_fin
 

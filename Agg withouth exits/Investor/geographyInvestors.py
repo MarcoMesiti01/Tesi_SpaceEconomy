@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -12,26 +11,38 @@ except ImportError:
     HAS_PGEO = False
 
 # Load data from DB_Out using Library helpers
-df_inv = mylib.openDB("investors")  # columns include: ID, Investor country, Investor city
+df_inv = mylib.openDB("investors").copy()
 df_exp = mylib.openDB("export")
+
+# Standardize the investor schema (DB_investors stores snake_case columns)
+df_inv.rename(
+    columns={
+        "investor_id": "InvestorID",
+        "investor_country": "Country",
+        "investor_city": "City",
+    },
+    inplace=True,
+)
+df_inv["InvestorID"] = pd.to_numeric(df_inv["InvestorID"], errors="coerce").astype("Int64")
+df_inv = df_inv[df_inv["InvestorID"].notna()].copy()
+_missing_tokens = {"", "nan", "none", "<na>"}
+df_inv["Country"] = df_inv["Country"].astype(str).str.strip()
+df_inv["Country"] = df_inv["Country"].mask(df_inv["Country"].str.lower().isin(_missing_tokens))
+df_inv["City"] = df_inv["City"].astype(str).str.strip()
+df_inv["City"] = df_inv["City"].mask(df_inv["City"].str.lower().isin(_missing_tokens))
 
 # Keep only space-related companies and the corresponding investor IDs
 df_exp = mylib.space(df_exp, "company_id", True)
 df_exp_ids = (
-    df_exp[["investor_id"]]
+    pd.to_numeric(df_exp["investor_id"], errors="coerce")
     .dropna()
-    .astype({"investor_id": int}, errors="ignore")
+    .astype("Int64")
+    .to_frame(name="InvestorID")
     .drop_duplicates()
 )
 
 # Filter investors to only those that appear in the (space-filtered) export
-df_inv = df_inv[df_inv["ID"].isin(df_exp_ids["investor_id"])].copy()
-
-# Normalize columns we need
-df_inv.rename(columns={
-    "Investor country": "Country",
-    "Investor city": "City",
-}, inplace=True)
+df_inv = df_inv[df_inv["InvestorID"].isin(df_exp_ids["InvestorID"])].copy()
 
 # Build world-level country counts excluding the USA (will map USA at state level separately)
 df_world = (
@@ -41,7 +52,11 @@ df_world = (
 
 # Exclude the USA with exact match (data is standardized)
 df_world = df_world[df_world["Country"] != "United States"]
-df_world = df_world[["Country", "ID"]].groupby("Country").count().reset_index()
+df_world = (
+    df_world.groupby("Country", as_index=False)["InvestorID"]
+    .nunique()
+    .rename(columns={"InvestorID": "Investors"})
+)
 df_world["CountryISO3"] = df_world["Country"].apply(mylib.to_iso3)
 df_world = df_world[df_world["CountryISO3"].notna()]
 
@@ -49,7 +64,7 @@ df_world = df_world[df_world["CountryISO3"].notna()]
 fig_world = px.choropleth(
     df_world,
     locations="CountryISO3",
-    color="ID",
+    color="Investors",
     hover_name="Country",
     color_continuous_scale="Reds",
     projection="natural earth",
@@ -65,7 +80,7 @@ for _, row in df_world.iterrows():
         go.Scattergeo(
             locationmode="ISO-3",
             locations=[row["CountryISO3"]],
-            text=[int(row["ID"])],
+            text=[int(row["Investors"])],
             mode="text",
             showlegend=False,
         )
@@ -73,6 +88,13 @@ for _, row in df_world.iterrows():
 fig_world.show()
 
 # ----- USA state-level map -----
+def _normalize_city_name(value):
+    if not isinstance(value, str):
+        return None
+    norm = value.strip()
+    return norm.casefold() if norm else None
+
+
 def build_city_to_state_map(cities):
     """Resolve a set of US city names to USPS state codes using pgeocode.
 
@@ -95,31 +117,31 @@ def build_city_to_state_map(cities):
     data = nomi._data  # pandas DataFrame with columns including place_name and state_code
 
     # Normalize once
-    series_place = data["place_name"].astype(str)
+    series_place = data["place_name"].astype(str).str.strip()
     cf_place = series_place.str.casefold()
 
     for city in cities:
-        if not isinstance(city, str) or not city.strip():
+        key_norm = _normalize_city_name(city)
+        if not key_norm:
             continue
-        key = city.strip()
-        key_cf = key.casefold()
-        mask = cf_place == key_cf
+        key_display = city.strip()
+        mask = cf_place == key_norm
         matches = data.loc[mask]
         if matches.empty:
             # try a looser match (start of place name), e.g., "st louis" vs "saint louis"
             # but do not auto-resolve across multiple states
-            loose = cf_place.str.startswith(key_cf)
+            loose = cf_place.str.startswith(key_norm)
             matches = data.loc[loose]
 
         if matches.empty:
-            missing.add(key)
+            missing.add(key_display)
             continue
 
         states = set(matches["state_code"].dropna().astype(str).str.upper().tolist())
         if len(states) == 1:
-            mapping[key] = next(iter(states))
+            mapping[key_norm] = next(iter(states))
         else:
-            mapping[key] = next(iter(states))
+            ambiguous.add(key_display)
 
     return mapping, ambiguous, missing
 
@@ -142,11 +164,16 @@ if ambiguous_cities:
 if missing_cities:
     print(f"Cities not found in GeoNames: {sorted(missing_cities)[:20]}... total={len(missing_cities)}")
 
-df_usa["StateCode"] = df_usa["City"].map(city_state_map)
-df_usa = df_usa[df_usa["StateCode"].notna()]
+df_usa["CityNorm"] = df_usa["City"].map(_normalize_city_name)
+df_usa["StateCode"] = df_usa["CityNorm"].map(city_state_map)
+df_usa = df_usa[df_usa["StateCode"].notna()].copy()
+df_usa.drop(columns=["CityNorm"], inplace=True)
 
-df_usa_counts = df_usa[["StateCode", "ID"]].groupby("StateCode").count().reset_index()
-df_usa_counts.rename(columns={"ID": "Investors"}, inplace=True)
+df_usa_counts = (
+    df_usa.groupby("StateCode", as_index=False)["InvestorID"]
+    .nunique()
+    .rename(columns={"InvestorID": "Investors"})
+)
 
 fig_usa = go.Figure(
     data=go.Choropleth(

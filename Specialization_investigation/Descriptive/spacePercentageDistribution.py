@@ -8,7 +8,12 @@ import numpy as np
 
 df=mylib.openDB("investors")
 
+
+
 df=flagS.spacePercentage(df, 2015, 0.2)
+
+print(df[df["space_percentage"]>0.96]["investor_id"].to_list())
+
 
 df=df[df["space_percentage"]>0.2]
 
@@ -24,13 +29,16 @@ mpl.rcParams.update({
 })
 
 bins=24
-plt.figure(figsize=(9.5, 5.5))
-plt.hist(df["space_percentage"], color="#1f77b4", edgecolor="white", bins=bins)
-plt.xlabel("Percentage of space investment")
-plt.ylabel("Number of firms")
-plt.title("Percentage distribution among space specialized firms")
-plt.xticks(np.linspace(0, 1, 6), labels=["0%","20%","40%","60%","80%","100%"])
-plt.grid(True, axis="y", alpha=0.2)
+weights = np.ones(len(df["space_percentage"])) / len(df["space_percentage"]) if len(df) else None
+fig, ax = plt.subplots(figsize=(9.5, 5.5))
+ax.hist(df["space_percentage"], color="#1f77b4", edgecolor="white", bins=bins, weights=weights)
+ax.set_xlabel("Percentage of space investment")
+ax.set_ylabel("Percentage of firms")
+ax.set_title("Percentage distribution among space specialized firms")
+ax.set_xticks(np.linspace(0, 1, 6))
+ax.set_xticklabels(["0%","20%","40%","60%","80%","100%"])
+ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+ax.grid(True, axis="y", alpha=0.2)
 plt.tight_layout()
 plt.show()
 
@@ -54,7 +62,7 @@ if "investor_id" in rounds.columns and "round_date" in rounds.columns:
     rounds["round_amount_usd"] = pd.to_numeric(rounds.get("round_amount_usd"), errors="coerce")
     # Tag space rounds without filtering out non-space
     rounds = mylib.space(rounds, column="company_id", filter=False)
-    rounds["is_space_round"] = (rounds["Space"].fillna(0) == 1).astype(int)
+    rounds["is_space_round"] = (rounds["space"].fillna(0) == 1).astype(int)
 
     # Filter to same time window [threshold_year .. 2025]
     rounds = rounds[(rounds["round_date"].dt.year >= threshold_year) & (rounds["round_date"].dt.year < 2025)]

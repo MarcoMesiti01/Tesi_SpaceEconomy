@@ -20,7 +20,7 @@ def build_investor_country_table(top_n: int = 8) -> pd.DataFrame:
     # Load DBs
     df_round = mylib.openDB("rounds")
     df_inv = mylib.openDB("investors")
-    df_updown = mylib.openDB("updown")[["Upstream", "Downstream", "Space"]]
+    df_updown = mylib.openDB("updown")[["company_id","upstream", "downstream", "space"]]
 
     # Keep only SPACE companies in rounds and remove exit rounds
     df_round = mylib.space(df_round, "company_id", True)
@@ -37,15 +37,17 @@ def build_investor_country_table(top_n: int = 8) -> pd.DataFrame:
     # Drop rows without country (cannot attribute to a country)
     df_round = df_round[df_round["investor_country"].notna()].copy()
 
-    # Attach Upstream/Downstream flags per target company
+    # Attach upstream/downstream flags per target company
     # updown parquet has company id as index; merge on right index
     df_round = pd.merge(
         df_round,
-        df_updown[["Upstream", "Downstream"]],
-        left_on="company_id",
-        right_index=True,
+        df_updown[["company_id","upstream", "downstream"]],
+        on="company_id",
         how="left",
+        suffixes=("", "_dup"),
     )
+    # Drop duplicate upstream/downstream columns that may have been brought along
+    df_round.drop(columns=["upstream_dup", "downstream_dup"], inplace=True, errors="ignore")
 
     # Venture capital fund flag (match token 'Venture capital' or 'venture_capital' as a list item)
     df_round["is_vc"] = df_round["investor_types"].astype(str).str.contains(
@@ -54,12 +56,12 @@ def build_investor_country_table(top_n: int = 8) -> pd.DataFrame:
     print(df_round[df_round["is_vc"]]["investor_id"].drop_duplicates().count())
 
     # Amount slices for up/down/other (neither up nor down)
-    df_round["amount_up"] = np.where(df_round["Upstream"] == 1, df_round["round_amount_usd"], 0)
+    df_round["amount_up"] = np.where(df_round["upstream"] == 1, df_round["round_amount_usd"], 0)
     df_round["amount_down"] = np.where(
-        df_round["Downstream"] == 1, df_round["round_amount_usd"], 0
+        df_round["downstream"] == 1, df_round["round_amount_usd"], 0
     )
     df_round["amount_other"] = np.where(
-        (df_round["Upstream"] != 1) & (df_round["Downstream"] != 1),
+        (df_round["upstream"] != 1) & (df_round["downstream"] != 1),
         df_round["round_amount_usd"],
         0,
     )

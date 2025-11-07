@@ -11,9 +11,9 @@ def classify_investment(tags: object) -> str:
         has_upstream = "upstream" in normalized
         has_downstream = "downstream" in normalized
         if has_upstream and not has_downstream:
-            return "Upstream"
+            return "upstream"
         if has_downstream and not has_upstream:
-            return "Downstream"
+            return "downstream"
     return "Other"
 
 
@@ -55,15 +55,15 @@ def main() -> None:
     grouped = df_round.groupby(["investor_types", "Investment category"], dropna=False)["Amount in EUR"].sum()
     pivot = grouped.unstack(fill_value=0.0)
 
-    for column in ["Upstream", "Downstream", "Other"]:
+    for column in ["upstream", "downstream", "Other"]:
         if column not in pivot.columns:
             pivot[column] = 0.0
-    pivot = pivot[["Upstream", "Downstream", "Other"]]
+    pivot = pivot[["upstream", "downstream", "Other"]]
 
     pivot.reset_index(inplace=True)
     pivot.rename(columns={
-        "Upstream": "Amount upstream",
-        "Downstream": "Amount downstream",
+        "upstream": "Amount upstream",
+        "downstream": "Amount downstream",
         "Other": "Other"
     }, inplace=True)
 

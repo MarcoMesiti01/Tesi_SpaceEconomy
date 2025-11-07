@@ -14,10 +14,10 @@ plt.rcParams.update({
 })
 
 df=mylib.openDB("rounds")
-#db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
-#db_exp=mylib.space(db_exp, "company_id", True)
-#db_exp=db_exp["company_id"]
-#df=df[df["company_id"].isin(db_exp)]
+db_exp=pd.read_parquet("DB_Out/DB_export.parquet", columns=["company_id","company_all_tags"])
+db_exp=mylib.space(db_exp, "company_id", True)
+db_exp=db_exp["company_id"]
+df=df[df["company_id"].isin(db_exp)]
 
 df=df[df["round_amount_usd"]!=0]
 df["round_amount_usd"]=df["round_amount_usd"].apply(lambda x: x/1000000 if not pd.isna(x) else x)
@@ -50,7 +50,7 @@ amountSums=[df_onemln, df_threemln, df_fivemln, df_tenmln, df_tentwentymln, df_m
 plt.bar(label, listSizes)
 plt.xlabel("Round amount (MLN)")
 plt.ylabel("Number of rounds (Millions)")
-plt.yticks(np.arange(0, 1600000, step=400000), ["0.4","0.8","1.2", "1.6"])
+#plt.yticks(np.arange(0, 1600000, step=400000), ["0.4","0.8","1.2", "1.6"])
 plt.title("Number of rounds for specific round sizes")
 plt.show()
 plt.bar(label, amountSums)

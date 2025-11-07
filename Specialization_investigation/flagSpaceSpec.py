@@ -49,7 +49,7 @@ def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshol
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"]
     rounds2=mylib.space(rounds2, "company_id", False)
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"] 
-    roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
+    roundsLen=rounds2[(rounds2["space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
     ids=set(roundsLen)
     eligible_ids=eligible_ids.intersection(ids)
     df_investor = df_investor[df_investor["investor_id"].isin(eligible_ids)]
@@ -74,7 +74,7 @@ def spaceSpecialization(df_investor: pd.DataFrame, threshold_year: int, threshol
 
     # Add space flag and compute space amounts
     rounds = mylib.space(rounds, column="company_id", filter=False)
-    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["Space"].fillna(0) == 1).astype(int)
+    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["space"].fillna(0) == 1).astype(int)
 
     # Restrict to investors provided in df_investor
     inv_ids = set(df_investor["investor_id"].dropna().unique())
@@ -110,7 +110,7 @@ def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_pe
     (not used for computation, kept for interface symmetry). Returns the input dataframe
     with a new column `space_percentage` in [0, 1], computed as:
         sum(space round_amount_usd) / sum(total round_amount_usd)
-    over the inclusive window [threshold_year..2025]. Investors with no activity receive 0.
+    over the inclusive window [threshold_year..2025). Investors with no activity receive 0.
 
     Filter the dataframe in order to exclude investor with less than 4 deals. 
     """
@@ -150,7 +150,7 @@ def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_pe
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"]
     rounds2=mylib.space(rounds2, "company_id", False)
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"] 
-    roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
+    roundsLen=rounds2[(rounds2["space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
     ids=set(roundsLen)
     eligible_ids=eligible_ids.intersection(ids)
 
@@ -175,7 +175,7 @@ def spacePercentage(df_investor: pd.DataFrame, threshold_year: int, threshold_pe
 
     # Add space flag and compute space amounts
     rounds = mylib.space(rounds, column="company_id", filter=False)
-    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["Space"].fillna(0) == 1).astype(int)
+    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["space"].fillna(0) == 1).astype(int)
 
     # Restrict to investors provided in df_investor
     inv_ids = set(df_investor["investor_id"].dropna().unique())
@@ -260,7 +260,7 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"]
     rounds2=mylib.space(rounds2, "company_id", False)
     firmEu=firm[firm["company_continent"]=="Europe"]["company_id"] 
-    roundsLen=rounds2[(rounds2["Space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
+    roundsLen=rounds2[(rounds2["space"]==1) & (rounds2["company_id"].isin(firmEu))]["investor_id"].drop_duplicates()
     ids=set(roundsLen)
     eligible_ids=eligible_ids.intersection(ids)
 
@@ -294,7 +294,7 @@ def spaceSpecYear(df_investor : pd.DataFrame, threshold_percentage: float) -> pd
     # Derive yearly totals per investor
     rounds["year"] = rounds["round_date"].dt.year
     # Amount attributed to space companies
-    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["Space"].fillna(0) == 1).astype(int)
+    rounds["space_amount"] = rounds["round_amount_usd"] * (rounds["space"].fillna(0) == 1).astype(int)
 
     # Restrict to investors of interest for efficiency
     if len(investor_ids) > 0:

@@ -14,12 +14,12 @@ plt.rcParams.update({
 })
 
 df_round = pd.read_parquet("DB_Out/DB_rounds.parquet")
-df_updown = pd.read_parquet("DB_Out/DB_updown.parquet", columns=["id", "Upstream", "Downstream", "Tags_x", "Space"])
+df_updown = pd.read_parquet("DB_Out/DB_updown.parquet", columns=["id", "upstream", "downstream", "Tags_x", "Space"])
 
 #filter space ventures
 df_updown.rename(columns={"Tags_x":"company_all_tags"}, inplace=True)
 df_updown=df_updown[df_updown["Space"]==1]
-df_updown=df_updown[["Upstream", "Downstream"]]
+df_updown=df_updown[["upstream", "downstream"]]
 df_round_updown = pd.merge(df_round, df_updown, how="left", left_on="company_id", right_index=True)
 
 #filter european firms
@@ -32,14 +32,14 @@ df_round_updown=df_round_updown[df_round_updown["company_id"].isin(df_firms)]
 df_round_updown["round_amount_usd"]=df_round_updown["round_amount_usd"].apply(lambda x: x/1000000000 if not pd.isna(x) else x)
 
 df_round_up = (
-    df_round_updown[df_round_updown["Upstream"] == 1][["company_country", "round_amount_usd"]]
+    df_round_updown[df_round_updown["upstream"] == 1][["company_country", "round_amount_usd"]]
     .groupby("company_country", as_index=False)["round_amount_usd"]
     .sum()
     .rename(columns={"round_amount_usd": "Amount upstream"})
 )
 
 df_round_down = (
-    df_round_updown[df_round_updown["Downstream"] == 1][["company_country", "round_amount_usd"]]
+    df_round_updown[df_round_updown["downstream"] == 1][["company_country", "round_amount_usd"]]
     .groupby("company_country", as_index=False)["round_amount_usd"]
     .sum()
     .rename(columns={"round_amount_usd": "Amount downstream"})
@@ -54,11 +54,11 @@ x = np.arange(len(top_countries))
 width = 0.4
 
 plt.figure(figsize=(12, 7))
-plt.bar(x - width / 2, top_countries["Amount upstream"], width, label="Upstream")
-plt.bar(x + width / 2, top_countries["Amount downstream"], width, label="Downstream")
+plt.bar(x - width / 2, top_countries["Amount upstream"], width, label="upstream")
+plt.bar(x + width / 2, top_countries["Amount downstream"], width, label="downstream")
 plt.xticks(x, top_countries["company_country"], rotation=45, ha="right")
 plt.ylabel("Investments (B USD)")
-plt.title("Upstream vs Downstream Investments by Country (Top 10 by Total)")
+plt.title("upstream vs downstream Investments by Country (Top 10 by Total)")
 plt.legend()
 plt.tight_layout()
 plt.show()

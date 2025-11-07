@@ -17,7 +17,7 @@ def build_firm_geography_table() -> pd.DataFrame:
 
     # Load DBs
     df_round = mylib.openDB("rounds")
-    df_updown = mylib.openDB("updown")[ ["Upstream", "Downstream", "Space"] ]
+    df_updown = mylib.openDB("updown")[ ["upstream", "downstream", "space"] ]
 
     # Keep only space companies and remove exits
     df_round = mylib.space(df_round, "company_id", True)
@@ -26,14 +26,16 @@ def build_firm_geography_table() -> pd.DataFrame:
     # Need company_country; drop rows without it
     df_round = df_round[df_round["company_country"].notna()].copy()
 
-    # Merge Upstream/Downstream flags (index of updown is company_id)
+    # Merge upstream/downstream flags (index of updown is company_id)
     df_round = pd.merge(
         df_round,
-        df_updown[["Upstream", "Downstream"]],
+        df_updown[["upstream", "downstream"]],
         left_on="company_id",
         right_index=True,
         how="left",
+        suffixes=("", "_dup"),
     )
+    df_round.drop(columns=["upstream_dup", "downstream_dup"], inplace=True, errors="ignore")
 
     # Per-firm stats (total raised and rounds per firm)
     firm_stats = (
@@ -56,10 +58,10 @@ def build_firm_geography_table() -> pd.DataFrame:
     )
 
     # Up/Down/Other amounts based on per-round flags
-    df_round["amount_up"] = np.where(df_round["Upstream"] == 1, df_round["round_amount_usd"], 0)
-    df_round["amount_down"] = np.where(df_round["Downstream"] == 1, df_round["round_amount_usd"], 0)
+    df_round["amount_up"] = np.where(df_round["upstream"] == 1, df_round["round_amount_usd"], 0)
+    df_round["amount_down"] = np.where(df_round["downstream"] == 1, df_round["round_amount_usd"], 0)
     df_round["amount_other"] = np.where(
-        (df_round["Upstream"] != 1) & (df_round["Downstream"] != 1),
+        (df_round["upstream"] != 1) & (df_round["downstream"] != 1),
         df_round["round_amount_usd"],
         0,
     )

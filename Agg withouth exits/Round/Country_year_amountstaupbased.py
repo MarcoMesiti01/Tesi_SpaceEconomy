@@ -22,7 +22,7 @@ df_round=df_round[df_round["company_id"].isin(db_exp)]
 df_round=mylib.filterExits(df_round)
 df_round=df_round[["company_country", "round_date", "round_amount_usd"]]
 df_round.rename(columns={"company_country":"Country"}, inplace=True)
-#df_round=mylib.toEU(df_round)
+df_round=mylib.toEU(df_round)
 df_round.rename(columns={"Country":"company_country"}, inplace=True)
 df_round["round_amount_usd"]=df_round["round_amount_usd"]/1000000000
 df_top_c=df_round[["company_country", "round_amount_usd"]].groupby("company_country").sum()
@@ -30,7 +30,7 @@ df_top_c.reset_index(inplace=True)
 df_top_c.sort_values(by="round_amount_usd", inplace=True, ascending=False)
 top_c=df_top_c["company_country"].head(5).to_list()
 df_round["round_date"]=df_round["round_date"].apply(mylib.getYear, by_row="compat")
-df_round=df_round[df_round["round_date"]>2010]
+df_round=df_round[df_round["round_date"]>=2010]
 df_round=df_round[df_round["company_country"].isin(top_c)]
 df_round=df_round.groupby(by=["company_country", "round_date"], sort=True).sum()
 #df_round.reset_index(inplace=True)
