@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 
 # Increase default font sizes for readability
 plt.rcParams.update({
-    'font.size': 14,
-    'axes.titlesize': 18,
-    'axes.labelsize': 14,
-    'xtick.labelsize': 12,
-    'ytick.labelsize': 12,
-    'legend.fontsize': 12,
+    'font.size': 20,
+    'axes.titlesize': 20,
+    'axes.labelsize': 20,
+    'xtick.labelsize': 20,
+    'ytick.labelsize': 20,
+    'legend.fontsize': 20,
 })
 
 #countryList=["Germany", "Italy", "United States", "France", "United Kingdom", "China"]

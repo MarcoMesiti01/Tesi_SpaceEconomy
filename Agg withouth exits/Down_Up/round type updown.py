@@ -9,12 +9,12 @@ import Library as mylib
 
 # Increase default font sizes for readability
 plt.rcParams.update({
-    'font.size': 14,
-    'axes.titlesize': 18,
-    'axes.labelsize': 14,
-    'xtick.labelsize': 12,
-    'ytick.labelsize': 12,
-    'legend.fontsize': 12,
+    'font.size': 20,
+    'axes.titlesize': 20,
+    'axes.labelsize': 20,
+    'xtick.labelsize': 20,
+    'ytick.labelsize': 20,
+    'legend.fontsize': 20,
 })
 
 
@@ -135,7 +135,7 @@ chart_data = chart_data.assign(
 )
 
 # Plot stacked bars: composition of upstream vs downstream by round type
-fig, ax = plt.subplots(figsize=(12, 7))
+fig, ax = plt.subplots(figsize=(7, 12))
 x = np.arange(len(chart_data))
 
 bars_up = ax.bar(x, chart_data["upstream"], label="upstream", color="#4C78A8")
@@ -171,7 +171,8 @@ for rect, (_, row) in zip(bars_down, chart_data.iterrows()):
 ax.set_xticks(x)
 ax.set_xticklabels(chart_data["round_type"], rotation=60, ha="right")
 ax.set_ylabel("Amount invested (B USD)")
-ax.set_title("upstream vs downstream Composition by Round Type")
+#ax.set_title("upstream vs downstream Composition by Round Type")
 ax.legend()
 plt.tight_layout()
 plt.show()
+plt.savefig("upDownWriting.png")

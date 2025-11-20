@@ -1,12 +1,80 @@
-# The script now performs a richer specialization analysis:
-#  - builds mean/std tables for multiple investor metrics across specialization classes
-#  - flags 5% significant deviations using simple z-tests
-#  - exports means, std devs, sample sizes, and significance to Excel
-#  - restricts to venture capital investors with >=4 deals and at least one European space deal
+# Window 2015-2018 specialization view:
+#  - specialization classes defined by the 2016-2020 share (column 2021 in FactInvestorYearSpecialization)
+#  - investor metrics only consider rounds executed between 2022 and 2025
+#  - keeps the venture-capital / >=4 deals / European space exposure filters used elsewhere
+#  - exports mean/std/count/significance tables for reuse in downstream notebooks
 import json
 from pathlib import Path
+import sys
+import types
 
 import pandas as pd
+
+# Ensure the repository root (hosting Library.py and DB_Out) is importable when
+# running this script from nested folders.
+_CURRENT_FILE = Path(__file__).resolve()
+for _parent in _CURRENT_FILE.parents:
+    if (_parent / "Library.py").exists():
+        parent_str = str(_parent)
+        if parent_str not in sys.path:
+            sys.path.insert(0, parent_str)
+        break
+
+# Library.py pulls in requests for optional helpers; provide a stub when the package
+# is missing so the rest of the analytics stack can run offline.
+try:  # pragma: no cover - defensive import guard
+    import requests  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    def _missing_requests_call(*_, **__) -> None:
+        raise ModuleNotFoundError(
+            "The 'requests' package is required for Library.findLocation(); "
+            "install requests if that helper is needed."
+        )
+
+    requests = types.SimpleNamespace(
+        get=_missing_requests_call,
+        post=_missing_requests_call,
+    )
+    sys.modules["requests"] = requests
+
+try:  # pragma: no cover
+    import plotly.express as px  # type: ignore
+    import plotly.graph_objects as go  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    def _missing_plotly_call(*_, **__) -> None:
+        raise ModuleNotFoundError(
+            "Plotly is required for visualization helpers in Library.py; install plotly to enable them."
+        )
+
+    class _Scattergeo:  # type: ignore
+        def __init__(self, *_, **__):
+            _missing_plotly_call()
+
+    px = types.SimpleNamespace(choropleth=_missing_plotly_call)
+    go = types.SimpleNamespace(Scattergeo=_Scattergeo)
+    plotly_stub = types.SimpleNamespace(express=px, graph_objects=go)
+    sys.modules["plotly"] = plotly_stub
+    sys.modules["plotly.express"] = px
+    sys.modules["plotly.graph_objects"] = go
+
+try:  # pragma: no cover
+    import pycountry  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    class _CountryLookup:
+        def lookup(self, *_: object, **__: object) -> object:
+            raise ModuleNotFoundError(
+                "pycountry is required for ISO lookups in Library.py; install pycountry if those helpers are needed."
+            )
+
+    pycountry = types.SimpleNamespace(countries=_CountryLookup())
+    sys.modules["pycountry"] = pycountry
+
+try:  # pragma: no cover
+    import statsmodels.api as sm  # type: ignore
+except ModuleNotFoundError as exc:  # pragma: no cover
+    raise ModuleNotFoundError(
+        "statsmodels is required for the OLS correlation sheet. Install it via 'pip install statsmodels'."
+    ) from exc
 
 import Library as mylib
 from Tesi_SpaceEconomy.Specialization_investigation.flagSpaceSpec import (
@@ -57,12 +125,47 @@ INVESTOR_METRIC_MAP = {
     "Domestic investments (%)": "domestic_pct",
 }
 
+PERCENT_COLUMNS = {
+    "upstream_pct",
+    "downstream_pct",
+    "other_segments_pct",
+    "round_seed_pct_space",
+    "round_early_stage_pct_space",
+    "round_early_growth_pct_space",
+    "round_later_stage_pct_space",
+    "round_seed_pct_other",
+    "round_early_stage_pct_other",
+    "round_early_growth_pct_other",
+    "round_later_stage_pct_other",
+    "domestic_pct",
+}
+
+OUTLIER_ZSCORE = 1.96  # 95% interval; tweak or disable as needed
+
+# Years/windows configured for this slice of the analysis
+ANALYSIS_START_YEAR = 2021
+ANALYSIS_END_YEAR = 2024
+SPECIALIZATION_REFERENCE_YEAR = 2021  # 2016-2020 lookback in FactInvestorYearSpecialization
+WINDOW_SPECIALIZATION_COL = "window1518_space_percentage"
+MIN_WINDOW_DEALS = 0  # minimum rounds required within the analysis window
+
 
 def load_round_normalizer(script_path: Path) -> dict[str, str]:
     # Normalizes raw round labels so we can aggregate clean round distributions
     """Load the round type normalization dictionary if available."""
-    json_path = script_path.parent / "Round" / "RoundNormaliz.JSON"
-    if not json_path.exists():
+    search_dirs = [script_path.parent]
+    upper = script_path.parent.parent
+    if upper not in search_dirs:
+        search_dirs.append(upper)
+
+    json_path: Path | None = None
+    for directory in search_dirs:
+        candidate = directory / "Round" / "RoundNormaliz.JSON"
+        if candidate.exists():
+            json_path = candidate
+            break
+
+    if json_path is None:
         return {}
 
     with open(json_path, "r", encoding="utf-8") as handle:
@@ -78,6 +181,79 @@ def load_round_normalizer(script_path: Path) -> dict[str, str]:
             if key:
                 mapping[key] = category
     return mapping
+
+
+def find_project_root(script_path: Path) -> Path:
+    """Return the closest ancestor that contains DB_Out (i.e., repo root)."""
+    resolved = script_path.resolve()
+    for parent in resolved.parents:
+        if (parent / "DB_Out").exists():
+            return parent
+    return resolved.parent
+
+
+def load_window_specialization(project_root: Path, column_year: int) -> pd.DataFrame:
+    """Load the FactInvestorYearSpecialization column for the requested reference year."""
+    fact_path = project_root / "DB_Out" / "Fact" / "FactInvestorYearSpecialization.parquet"
+    fact = pd.read_parquet(fact_path)
+
+    if column_year in fact.columns:
+        column_key: int | str = column_year
+    elif str(column_year) in fact.columns:
+        column_key = str(column_year)
+    else:
+        raise KeyError(
+            f"Column '{column_year}' not found in {fact_path.name}; available columns: {list(fact.columns)}"
+        )
+
+    specialization = (
+        fact[[column_key]]
+        .rename(columns={column_key: WINDOW_SPECIALIZATION_COL})
+        .reset_index()
+    )
+    specialization[WINDOW_SPECIALIZATION_COL] = (
+        pd.to_numeric(specialization[WINDOW_SPECIALIZATION_COL], errors="coerce")
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    return specialization
+
+
+def apply_window_specialization(
+    investors_df: pd.DataFrame,
+    project_root: Path,
+    column_year: int = SPECIALIZATION_REFERENCE_YEAR,
+) -> pd.DataFrame:
+    """Attach the 2016-2020 share (column 2021) to investors and overwrite space_percentage."""
+    specialization = load_window_specialization(project_root, column_year)
+    merged = investors_df.merge(specialization, on="investor_id", how="left")
+    merged[WINDOW_SPECIALIZATION_COL] = (
+        merged[WINDOW_SPECIALIZATION_COL].fillna(0.0).clip(lower=0.0)
+    )
+    merged["space_percentage"] = merged[WINDOW_SPECIALIZATION_COL]
+    return merged
+
+
+def trim_outliers(
+    df: pd.DataFrame,
+    column: str,
+    zscore: float = OUTLIER_ZSCORE,
+) -> pd.DataFrame:
+    """Return df filtered to values within mean ± zscore*std for the specified column."""
+    if df.empty:
+        return df
+    series = df[column].dropna()
+    if len(series) < 3:
+        return df
+    std = float(series.std(ddof=0))
+    if std == 0 or pd.isna(std):
+        return df
+    mean = float(series.mean())
+    lower = mean - (zscore * std)
+    upper = mean + (zscore * std)
+    trimmed = df[(df[column] >= lower) & (df[column] <= upper)]
+    # Avoid over-trimming: keep original subset if filtering removes everything
+    return trimmed if not trimmed.empty else df
 
 
 def mean_std(series: pd.Series, multiplier: float = 1.0) -> tuple[float, float, int]:
@@ -134,6 +310,10 @@ def build_investor_metrics(rounds: pd.DataFrame, class_labels: list[str]) -> pd.
         .set_index("investor_id")
     )
     metrics = investor_classes.copy()
+    spec_share = (
+        rounds.groupby("investor_id")["space_percentage"].mean().rename("space_percentage")
+    )
+    metrics = metrics.join(spec_share, how="left")
 
     space_rounds = rounds[rounds["space"] == 1]
     other_rounds = rounds[rounds["space"] != 1]
@@ -260,16 +440,181 @@ def compute_metrics_by_class(
     return means_df, stds_df, counts_df
 
 
+def compute_ols_correlations(investor_metrics: pd.DataFrame) -> pd.DataFrame:
+    """Estimate OLS slope vs specialization for each KPI and collect dispersion/significance."""
+    metric_keys = [
+        "Intercept (b0)",
+        "Intercept significant (5%)",
+        "Intercept significant (1%)",
+        "Correlation (slope)",
+        "Std dev (slope)",
+        "Adjusted R-squared",
+        "Significant (5%)",
+        "Significant (1%)",
+    ]
+    column_stats: dict[str, dict[str, float | bool]] = {}
+    spec_col = "space_percentage"
+
+    for label, column in INVESTOR_METRIC_MAP.items():
+        subset = investor_metrics[[spec_col, column]].dropna()
+        subset = subset[
+            subset[spec_col].notna() & subset[column].notna()
+        ]
+        trimmed_subset = trim_outliers(subset, column)
+        if len(trimmed_subset) >= 4:
+            subset = trimmed_subset
+        trimmed_subset = trim_outliers(subset, column)
+        if len(trimmed_subset) >= 3:
+            subset = trimmed_subset
+        intercept = 0.0
+        slope = 0.0
+        std_dev = 0.0
+        sig_5 = False
+        sig_1 = False
+        intercept_sig5 = False
+        intercept_sig1 = False
+        r_squared = 0.0
+
+        if len(subset) >= 3 and subset[spec_col].nunique() > 1:
+            y = subset[column].astype(float)
+            if column in PERCENT_COLUMNS:
+                y = y / 100.0
+            X = sm.add_constant(subset[spec_col].astype(float), has_constant="add")
+            model = sm.OLS(y, X).fit()
+            intercept = float(model.params.get("const", 0.0))
+            slope = float(model.params[spec_col])
+            std_dev = float(model.bse[spec_col])
+            p_value = float(model.pvalues[spec_col])
+            sig_5 = p_value < 0.05
+            sig_1 = p_value < 0.01
+            if "const" in model.pvalues:
+                const_p = float(model.pvalues["const"])
+                intercept_sig5 = const_p < 0.05
+                intercept_sig1 = const_p < 0.01
+            r_squared = float(model.rsquared_adj)
+
+        column_stats[label] = {
+            "Intercept (b0)": intercept,
+            "Intercept significant (5%)": intercept_sig5,
+            "Intercept significant (1%)": intercept_sig1,
+            "Correlation (slope)": slope,
+            "Std dev (slope)": std_dev,
+            "Adjusted R-squared": r_squared,
+            "Significant (5%)": sig_5,
+            "Significant (1%)": sig_1,
+        }
+
+    correlation_df = pd.DataFrame(column_stats).T
+    correlation_df = correlation_df[metric_keys]
+    return correlation_df
+
+
+def compute_quadratic_regressions(investor_metrics: pd.DataFrame) -> pd.DataFrame:
+    """Run OLS with linear and squared specialization terms for each KPI."""
+    spec_col = "space_percentage"
+    metric_keys = [
+        "Intercept (b0)",
+        "Intercept significant (5%)",
+        "Intercept significant (1%)",
+        "Slope (linear)",
+        "Std dev (linear)",
+        "Significant 5% (linear)",
+        "Significant 1% (linear)",
+        "Slope (squared)",
+        "Std dev (squared)",
+        "Significant 5% (squared)",
+        "Significant 1% (squared)",
+        "Adjusted R-squared",
+    ]
+    column_stats: dict[str, dict[str, float | bool]] = {}
+
+    for label, column in INVESTOR_METRIC_MAP.items():
+        subset = investor_metrics[[spec_col, column]].dropna()
+        subset = subset[
+            subset[spec_col].notna() & subset[column].notna()
+        ]
+        lin_slope = 0.0
+        lin_std = 0.0
+        lin_sig5 = False
+        lin_sig1 = False
+        intercept = 0.0
+        quad_slope = 0.0
+        quad_std = 0.0
+        quad_sig5 = False
+        quad_sig1 = False
+        intercept_sig5 = False
+        intercept_sig1 = False
+        r_squared = 0.0
+
+        if len(subset) >= 4 and subset[spec_col].nunique() > 1:
+            spec = subset[spec_col].astype(float)
+            y = subset[column].astype(float)
+            if column in PERCENT_COLUMNS:
+                y = y / 100.0
+            X = pd.DataFrame(
+                {
+                    "space": spec,
+                    "space_sq": spec**2,
+                }
+            )
+            X = sm.add_constant(X, has_constant="add")
+            model = sm.OLS(y, X).fit()
+            intercept = float(model.params.get("const", 0.0))
+            r_squared = float(model.rsquared_adj)
+            if "const" in model.pvalues:
+                const_p = float(model.pvalues["const"])
+                intercept_sig5 = const_p < 0.05
+                intercept_sig1 = const_p < 0.01
+
+            if "space" in model.params:
+                lin_slope = float(model.params["space"])
+                lin_std = float(model.bse["space"])
+                p_val = float(model.pvalues["space"])
+                lin_sig5 = p_val < 0.05
+                lin_sig1 = p_val < 0.01
+            if "space_sq" in model.params:
+                quad_slope = float(model.params["space_sq"])
+                quad_std = float(model.bse["space_sq"])
+                p_val = float(model.pvalues["space_sq"])
+                quad_sig5 = p_val < 0.05
+                quad_sig1 = p_val < 0.01
+
+        column_stats[label] = {
+            "Slope (linear)": lin_slope,
+            "Std dev (linear)": lin_std,
+            "Significant 5% (linear)": lin_sig5,
+            "Significant 1% (linear)": lin_sig1,
+            "Slope (squared)": quad_slope,
+            "Std dev (squared)": quad_std,
+            "Significant 5% (squared)": quad_sig5,
+            "Significant 1% (squared)": quad_sig1,
+            "Adjusted R-squared": r_squared,
+            "Intercept (b0)": intercept,
+            "Intercept significant (5%)": intercept_sig5,
+            "Intercept significant (1%)": intercept_sig1,
+        }
+
+    quad_df = pd.DataFrame(column_stats).T
+    quad_df = quad_df[metric_keys]
+    return quad_df
+
+
 def prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     # Consolidates all cleaning/enrichment steps needed before aggregation
     """Load, merge, and enrich the rounds dataset."""
+    script_path = Path(__file__).resolve()
+    project_root = find_project_root(script_path)
+
     investors = mylib.openDB("investors")
     rounds_raw = mylib.openDB("rounds")
 
     # Use the shared helper to retain only VCs with >=4 deals and at least one
-    # European space deal (across the 2015-2025 window), returning the filtered
-    # investor set plus the computed space_percentage per investor.
+    # European space deal (baseline filters), then overwrite specialization shares
+    # with the 2016-2020 ratio coming from FactInvestorYearSpecialization (column 2021).
     specialized_investors = spacePercentage(investors, 2015, 0.2).copy()
+    specialized_investors = apply_window_specialization(
+        specialized_investors, project_root, SPECIALIZATION_REFERENCE_YEAR
+    )
     if specialized_investors.empty:
         raise ValueError("No venture capital investors satisfied the specialization filters.")
 
@@ -284,23 +629,79 @@ def prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     rounds["upstream"] = rounds.get("upstream", 0).fillna(0)
     rounds["downstream"] = rounds.get("downstream", 0).fillna(0)
 
-    # Restrict to the 2015-2025 window used for specialization calculations
+    # Restrict to the 2022-2025 window used for this descriptive cut
     rounds["round_date"] = pd.to_datetime(rounds["round_date"], errors="coerce")
     rounds = rounds.dropna(subset=["round_date"])
     rounds = rounds[
-        (rounds["round_date"].dt.year >= 2015)
-        & (rounds["round_date"].dt.year <= 2025)
+        (rounds["round_date"].dt.year >= ANALYSIS_START_YEAR)
+        & (rounds["round_date"].dt.year <= ANALYSIS_END_YEAR)
     ].copy()
 
-    # Retain all venture investors surfaced by spacePercentage (including 0% specialization)
-    if specialized_investors.empty:
-        raise ValueError("No venture capital investors satisfied the specialization filters.")
+    # Restrict to investors marked as original VC (per Library helper) and with >=4 total deals
+    original_vc_df = mylib.isOriginalVC(
+        specialized_investors[["investor_id"]].drop_duplicates(), True
+    )
+    original_vc_ids = set(original_vc_df["investor_id"].dropna().unique())
+
+    rounds_all = mylib.openDB("rounds")
+    rounds_all_space = mylib.space(rounds_all.copy(), "company_id", False)
+    deals_per_investor = (
+        rounds_all.dropna(subset=["investor_id"]).groupby("investor_id").size()
+    )
+    four_plus_ids = set(deals_per_investor[deals_per_investor >= 4].index)
+
+    firms_path = project_root / "DB_Out" / "DB_firms.parquet"
+    firms = pd.read_parquet(firms_path)
+    if "company_continent" in firms.columns:
+        continent_series = firms["company_continent"].astype(str).str.strip().str.casefold()
+    else:
+        continent_series = pd.Series("", index=firms.index)
+    europe_company_ids = set(
+        firms.loc[continent_series == "europe", "company_id"].dropna().unique()
+    )
+    europe_space_ids = set(
+        rounds_all_space.loc[
+            (rounds_all_space["space"] == 1)
+            & (rounds_all_space["company_id"].isin(europe_company_ids)),
+            "investor_id",
+        ]
+        .dropna()
+        .unique()
+    )
+
+    valid_ids = (
+        original_vc_ids
+        & four_plus_ids
+        & europe_space_ids
+        & set(specialized_investors["investor_id"].dropna().unique())
+    )
+    specialized_investors = specialized_investors[
+        specialized_investors["investor_id"].isin(valid_ids)
+    ].copy()
+    specialized_investors = specialized_investors[
+        specialized_investors["space_percentage"].fillna(0.0) > 0.0
+    ].copy()
+
     valid_ids = set(specialized_investors["investor_id"].dropna().unique())
+    if not valid_ids:
+        raise ValueError(
+            "No investors remain after applying the original VC and 4+ deals filters."
+        )
 
     # Compute the specialization percentage per eligible investor (0..1 scale)
-    inv_percentage = specialized_investors[["investor_id", "space_percentage"]]
+    rounds = rounds[rounds["investor_id"].isin(valid_ids)].copy()
+    window_counts = rounds.groupby("investor_id").size()
+    window_ids = set(window_counts[window_counts >= MIN_WINDOW_DEALS].index)
+    valid_ids = valid_ids & window_ids
+    if not valid_ids:
+        raise ValueError(
+            "No investors meet the minimum deal threshold within the analysis window."
+        )
 
-    # Keep only rounds tied to the filtered investor universe
+    specialized_investors = specialized_investors[
+        specialized_investors["investor_id"].isin(valid_ids)
+    ].copy()
+    inv_percentage = specialized_investors[["investor_id", "space_percentage"]]
     rounds = rounds[rounds["investor_id"].isin(valid_ids)].copy()
 
     # Attach the specialization share to each round for later binning
@@ -334,7 +735,6 @@ def prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     # Build five even bins between 0% and 100% specialized
     edges = [0, 0.2, 0.4, 0.6, 0.8, 1.0000001]
     labels = ["0-20%", "20%-40%", "40%-60%", "60%-80%", "80%-100%"]
-    # Translate the continuous specialization score into five evenly spaced classes
     rounds["class"] = pd.cut(
         rounds["space_percentage"],
         bins=edges,
@@ -343,7 +743,7 @@ def prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
         right=True,
     )
 
-    normalizer = load_round_normalizer(Path(__file__))
+    normalizer = load_round_normalizer(script_path)
     if normalizer:
         rounds["std_round"] = rounds["round_label"].apply(
             lambda val: normalizer.get(str(val).strip().lower()) if pd.notna(val) else None
@@ -403,6 +803,8 @@ def flag_significance(
 def main() -> None:
     rounds, investor_metrics, labels = prepare_data()
     means, stds, counts = compute_metrics_by_class(investor_metrics, labels)
+    correlation_df = compute_ols_correlations(investor_metrics)
+    quadratic_df = compute_quadratic_regressions(investor_metrics)
 
     # Align row order and fill gaps so every KPI appears in the final tables
     means = means.reindex(index=ROW_LABELS).fillna(0.0)
@@ -425,16 +827,20 @@ def main() -> None:
             means_display.loc[row, col] = f"{means_out.loc[row, col]:.2f}"
 
     # Store everything next to the script so downstream notebooks can pick it up easily
-    output_path = Path(__file__).with_name("comparison_with_not_focused_tables.xlsx")
+    output_path = Path(__file__).with_name("comparison_with_not_focused_window1518.xlsx")
     # Send each table to its dedicated Excel sheet for downstream analysis
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         means_out.to_excel(writer, sheet_name="Means")
         stds_out.to_excel(writer, sheet_name="StdDev")
-    counts.to_excel(writer, sheet_name="SampleSize")
-    significance_out.to_excel(writer, sheet_name="Significance (5%)")
+        counts.to_excel(writer, sheet_name="SampleSize")
+        significance_out.to_excel(writer, sheet_name="Significance (5%)")
+        correlation_df.to_excel(writer, sheet_name="OLS_Correlation")
+        quadratic_df.to_excel(writer, sheet_name="OLS_Correlation_Quadratic")
 
     # Mirror the Excel output in the terminal for quick inspection during runs
-    print("Average metrics by specialization class (* = significant at 5%):")
+    print(
+        "Average metrics by specialization class (2022-2025 rounds, 2016-2020 specialization; * = significant at 5%):"
+    )
     print(means_display)
     print("\nStandard deviation by specialization class:")
     print(stds_out.round(2))
@@ -442,6 +848,10 @@ def main() -> None:
     print(counts)
     print("\nSignificance (5% level):")
     print(significance_display)
+    print("\nOLS slope vs specialization (rows: slope/std/significance):")
+    print(correlation_df.round(4))
+    print("\nOLS with squared term (linear + quadratic coefficients):")
+    print(quadratic_df.round(4))
     print(f"\nExcel output saved to: {output_path}")
 
 
